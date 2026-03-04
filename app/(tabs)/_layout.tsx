@@ -5,10 +5,10 @@ import React from 'react';
 const HomeLayout = () => {
     return (
         <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <CustomTabBar {...props} />}>
-            <Tabs.Screen name="Home" />
-            <Tabs.Screen name="Calendar" />
-            <Tabs.Screen name="Graph" />
-            <Tabs.Screen name="Menu" />
+            <Tabs.Screen name="index" options={{ title: 'Home' }} />
+            <Tabs.Screen name="calendar" options={{ title: 'Calendar' }} />
+            <Tabs.Screen name="graph" options={{ title: 'Graph' }} />
+            <Tabs.Screen name="menu" options={{ title: 'Menu' }} />
         </Tabs>
     );
 };
