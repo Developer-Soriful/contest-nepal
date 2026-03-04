@@ -1,6 +1,6 @@
 import { import_img } from "@/assets/import_img";
+import CustomGradientButton from "@/components/CustomGradientButton";
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -10,7 +10,9 @@ export default function Login() {
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [rememberMe, setRememberMe] = useState(false);
-
+    const handleLogin = () => {
+        router.navigate("/(tabs)" as any);
+    }
     return (
         <View style={{ flex: 1 }}>
             <KeyboardAvoidingView
@@ -108,40 +110,10 @@ export default function Login() {
                         </View>
 
                         {/* Login Button */}
-                        <View style={{
-                            width: "100%",
-                            borderColor: "#990009",
-                            borderWidth: 1,
-                            borderRadius: 50,
-                            marginBottom: 25
-                        }}>
-                            <TouchableOpacity
-                                activeOpacity={0.8}
-                                onPress={() => console.log("Sign Up Pressed")}
-                                style={{ borderRadius: 50, overflow: 'hidden' }}
-                            >
-                                <LinearGradient
-                                    colors={['#990009', '#C21923', '#990009']}
-                                    locations={[0.6438, 0.7543, 0.8646]}
-                                    start={{ x: 1, y: 0.2 }}
-                                    end={{ x: 0, y: 0.8 }}
-                                    style={{
-                                        paddingVertical: 15,
-                                        paddingHorizontal: 30,
-                                        borderRadius: 50,
-                                        borderColor: "white",
-                                        borderWidth: 1,
-                                        justifyContent: "center",
-                                        alignItems: "center",
-                                    }}
-                                >
-                                    <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>
-                                        Login
-                                    </Text>
-                                </LinearGradient>
-                            </TouchableOpacity>
-                        </View>
-
+                        <CustomGradientButton
+                            title="Login"
+                            onPress={() => handleLogin()}
+                        />
                         {/* Or Continue With */}
                         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 25, marginTop: 25 }}>
                             <View style={{ flex: 1, height: 1, backgroundColor: "#e0e0e0" }} />
