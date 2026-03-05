@@ -10,7 +10,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
             bottom: Platform.OS === 'ios' ? 30 : 20,
             width: '100%',
             alignItems: 'center',
-            paddingHorizontal: 15,
+            paddingHorizontal: 18,
         }}>
             <View style={{
                 display: 'flex',
