@@ -1,5 +1,7 @@
 import { import_img } from "@/assets/import_img";
+import ContestCard from "@/src/components/ContestCard";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import {
   Image,
@@ -10,7 +12,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import ContestCard from "../../components/ContestCard";
 
 const HomePage = () => {
   return (
@@ -31,7 +32,8 @@ const HomePage = () => {
         {/* Profile Section (Left) */}
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           {/* User Avatar */}
-          <Image
+          <TouchableOpacity onPress={() => router.navigate("/profile")}>
+             <Image
             source={{ uri: "https://i.pravatar.cc/150?u=alexa" }}
             style={{
               width: 51,
@@ -41,6 +43,8 @@ const HomePage = () => {
               borderColor: "#fff",
             }}
           />
+          </TouchableOpacity>
+         
 
           {/* Welcome Text */}
           <View style={{ marginLeft: 12 }}>

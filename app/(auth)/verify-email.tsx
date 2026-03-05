@@ -1,4 +1,4 @@
-import CustomGradientButton from "@/components/CustomGradientButton"; // আপনার রিইউজেবল বাটন
+import CustomGradientButton from '@/src/components/CustomGradientButton';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";

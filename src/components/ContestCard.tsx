@@ -1,7 +1,7 @@
+import { import_img } from "@/assets/import_img";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, Platform, Text, View } from "react-native";
-import { import_img } from "../assets/import_img";
 import CustomGradientButton from "./CustomGradientButton";
 
 interface ContestCardProps {

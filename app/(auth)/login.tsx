@@ -1,5 +1,5 @@
 import { import_img } from "@/assets/import_img";
-import CustomGradientButton from "@/components/CustomGradientButton";
+import CustomGradientButton from "@/src/components/CustomGradientButton";
 import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
 import React, { useState } from "react";

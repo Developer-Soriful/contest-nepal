@@ -1,4 +1,4 @@
-import CustomTabBar from '@/components/CustomTabBar';
+import CustomTabBar from '@/src/components/CustomTabBar';
 import { Tabs } from 'expo-router';
 import React from 'react';
 
