@@ -168,40 +168,7 @@ const ContestCard: React.FC<ContestCardProps> = ({
             {isActive ? "Active" : "Ended"}
           </Text>
         </View>
-
-        {/* Action Button */}
-        {/* <TouchableOpacity
-          activeOpacity={0.8}
-          style={{
-            backgroundColor: "#990009",
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            paddingVertical: 12,
-            borderRadius: 14,
-            width: "100%",
-          }}
-        >
-          <Text
-            style={{
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: "700",
-              marginRight: 8,
-            }}
-          >
-            View Details
-          </Text>
-          <View
-            style={{
-              backgroundColor: "rgba(255,255,255,0.2)",
-              borderRadius: 10,
-              padding: 2,
-            }}
-          >
-            <Ionicons name="arrow-forward-outline" size={14} color="#fff" />
-          </View>
-        </TouchableOpacity> */}
+        {/* View Details Button */}
         <CustomGradientButton
           title="View Details"
           containerStyle={{ borderWidth: 0, borderRadius: 12 }}
