@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
@@ -15,7 +16,6 @@ interface HeaderProps {
 
 const Header = ({
   title,
-  onLeftPress,
   leftIconName = "chevron-back",
   rightElement,
   backgroundColor = "#FFFFFF",
@@ -29,26 +29,24 @@ const Header = ({
       paddingHorizontal: 16,
       backgroundColor: backgroundColor,
     }}>
-      
+
       {/* Left Section */}
       <View style={{ flex: 1, alignItems: 'flex-start' }}>
-        {onLeftPress && (
-          <TouchableOpacity
-            onPress={onLeftPress}
-            activeOpacity={0.7}
-            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            style={{ padding: 4 }}
-          >
-            <Ionicons name={leftIconName} size={20} color={BRAND_COLOR} />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+          style={{ padding: 4 , backgroundColor: '#FFF', borderRadius: 100 , paddingVertical: 12 , paddingHorizontal: 12 , borderWidth: 0.6, borderColor: '#990009' }}
+        >
+          <Ionicons name={leftIconName} size={20} color={BRAND_COLOR} />
+        </TouchableOpacity>
       </View>
 
       {/* Center Section */}
       <View style={{ flex: 3 }}>
         <Text style={{
           textAlign: 'center',
-          fontSize: 17,
+          fontSize: 22,  
           fontWeight: '600',
           color: '#1A1A1A',
         }} numberOfLines={1}>
@@ -60,7 +58,7 @@ const Header = ({
       <View style={{ flex: 1, alignItems: 'flex-end' }}>
         {rightElement || <View style={{ width: 20 }} />}
       </View>
-      
+
     </View>
   );
 };

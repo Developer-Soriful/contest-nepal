@@ -120,7 +120,7 @@ const ProfileScreen = () => {
     };
 
     const handleHelpSupport = () => {
-        console.log('Help & Support clicked');
+        router.push('/help-support');
     };
 
     const handleLogout = () => {
@@ -139,7 +139,6 @@ const ProfileScreen = () => {
         <SafeAreaView style={styles.container}>
             <Header
                 title="Profile"
-                onLeftPress={handleBack}
                 backgroundColor="#EFF1F3"
             />
 
