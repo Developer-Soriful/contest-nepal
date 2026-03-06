@@ -1,4 +1,4 @@
- import { Feather, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, Feather, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import {
@@ -7,12 +7,14 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Linking,
+    Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Header from '../components/Header';
 
 interface MenuItemProps {
-    icon?: React.ReactNode;
+    icon: React.ReactNode;
     title: string;
     onPress: () => void;
 }
@@ -33,19 +35,47 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, title, onPress }) => {
     );
 };
 
-const HelpSupport = () => {
-    const handleFAQ = () => {
-        router.push('/faq');
+const ContactUs = () => {
+    const handleInstagram = () => {
+        const instagramUrl = 'https://instagram.com/your_handle';
+        Linking.canOpenURL(instagramUrl)
+            .then((supported) => {
+                if (supported) {
+                    Linking.openURL(instagramUrl);
+                } else {
+                    Alert.alert('Error', 'Cannot open Instagram');
+                }
+            });
     };
 
-    const handleContactUs = () => {
-        router.push('/contact-us');
+    const handleEmail = () => {
+        const emailUrl = 'mailto:support@example.com';
+        Linking.canOpenURL(emailUrl)
+            .then((supported) => {
+                if (supported) {
+                    Linking.openURL(emailUrl);
+                } else {
+                    Alert.alert('Error', 'Cannot open email client');
+                }
+            });
+    };
+
+    const handleTikTok = () => {
+        const tiktokUrl = 'https://tiktok.com/@your_handle';
+        Linking.canOpenURL(tiktokUrl)
+            .then((supported) => {
+                if (supported) {
+                    Linking.openURL(tiktokUrl);
+                } else {
+                    Alert.alert('Error', 'Cannot open TikTok');
+                }
+            });
     };
 
     return (
         <SafeAreaView style={styles.container}>
             <Header
-                title="Help & Support"
+                title="Contact Us"
                 backgroundColor="#EFF1F3"
             />
 
@@ -53,18 +83,24 @@ const HelpSupport = () => {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
-                {/* Menu Items */}
+                {/* Contact Options */}
                 <View style={styles.menuContainer}>
                     <MenuItem
-                        icon={<MaterialIcons name="help-outline" size={20} color="#666" />}
-                        title="FAQ"
-                        onPress={handleFAQ}
+                        icon={<FontAwesome5 name="instagram" size={20} color="#666" />}
+                        title="Instagram"
+                        onPress={handleInstagram}
                     />
                     <View style={styles.divider} />
                     <MenuItem
                         icon={<Feather name="mail" size={20} color="#666" />}
-                        title="Contact Us"
-                        onPress={handleContactUs}
+                        title="Email"
+                        onPress={handleEmail}
+                    />
+                    <View style={styles.divider} />
+                    <MenuItem
+                        icon={<FontAwesome5 name="tiktok" size={20} color="#666" />}
+                        title="Tik tok"
+                        onPress={handleTikTok}
                     />
                 </View>
             </ScrollView>
@@ -114,4 +150,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default HelpSupport;
+export default ContactUs;

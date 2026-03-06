@@ -112,7 +112,7 @@ const ProfileScreen = () => {
     };
 
     const handlePrivacyPolicy = () => {
-        console.log('Privacy Policy clicked');
+        router.push('/privacy-policy');
     };
 
     const handleTermsCondition = () => {
