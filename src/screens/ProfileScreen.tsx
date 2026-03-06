@@ -116,7 +116,7 @@ const ProfileScreen = () => {
     };
 
     const handleTermsCondition = () => {
-        console.log('Terms & Condition clicked');
+        router.push('/terms-conditions');
     };
 
     const handleHelpSupport = () => {
