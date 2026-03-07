@@ -64,7 +64,7 @@ export default function EntryFormScreen() {
                 backgroundColor="transparent"
             />
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
                 <View style={{ marginHorizontal: 16, borderRadius: 24 }}>
                     {/* Header Section */}
                     <View style={{
@@ -206,7 +206,7 @@ export default function EntryFormScreen() {
                                 title="Confirm Entry"
                                 containerStyle={{ borderRadius: 10 }}
                                 borderRadius={10}
-                                onPress={() => console.log('Confirm Entry pressed')}
+                                onPress={() => router.replace('/entry-confirm')}
                             />
                         </View>
                     </View>
