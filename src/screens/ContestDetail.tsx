@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import React from 'react';
 import {
     Dimensions,
@@ -10,6 +10,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import CustomGradientButton from '../components/CustomGradientButton';
 import Header from '../components/Header';
 
 const { width } = Dimensions.get('window');
@@ -21,7 +22,7 @@ const COLORS = {
     textDark: '#1F2937',
     textSecondary: '#6B7280',
     bgLight: '#F9FAFB',
-    cardBg: '#F5F6FF',
+    cardBg: '#f5f4fe',
     white: '#FFFFFF',
     success: '#10B981',
 };
@@ -41,6 +42,9 @@ const RuleItem = ({ text }: { text: string }) => (
 
 export default function ContestDetailsScreen() {
     const handleParticipate = () => console.log('Participate Pressed');
+    const handleStartEntry = () => {
+        router.replace('/entry-form');
+    };
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
@@ -84,13 +88,12 @@ export default function ContestDetailsScreen() {
                             Complete the tasks listed in the entry form to earn your chance to win. The more tasks you complete, the higher your chances!
                         </Text>
                         <TouchableOpacity activeOpacity={0.8}>
-                            <LinearGradient
-                                colors={COLORS.primaryGradient}
-                                style={{ padding: 12, borderRadius: 8, alignItems: 'center' }}
-                                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                            >
-                                <Text style={{ color: '#fff', fontWeight: '700' }}>Start Entry</Text>
-                            </LinearGradient>
+                            <CustomGradientButton
+                                containerStyle={{ borderRadius: 10 }}
+                                borderRadius={10}
+                                title="Start Entry"
+                                onPress={handleStartEntry}
+                            />
                         </TouchableOpacity>
                     </View>
 
@@ -145,15 +148,12 @@ export default function ContestDetailsScreen() {
 
             {/* Sticky Bottom Button */}
             <View style={{ position: 'absolute', bottom: 0, width: '100%', padding: 16, backgroundColor: '#fff' }}>
-                <TouchableOpacity activeOpacity={0.9} onPress={handleParticipate}>
-                    <LinearGradient
-                        colors={COLORS.primaryGradient}
-                        style={{ padding: 18, borderRadius: 12, alignItems: 'center' }}
-                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    >
-                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>Participate Now</Text>
-                    </LinearGradient>
-                </TouchableOpacity>
+                <CustomGradientButton
+                    containerStyle={{ borderRadius: 10 }}
+                    borderRadius={10}
+                    title="Participate Now"
+                    onPress={handleParticipate}
+                />
             </View>
         </SafeAreaView>
     );
