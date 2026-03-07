@@ -9,12 +9,12 @@ import home_icon from "./images/home_icon.png";
 import icon from "./images/icon.png";
 import menu_icon from "./images/menu_icon.png";
 import middle_squre from "./images/middle_squre.png";
+import notify_icon from "./images/notify_icon.png";
 import shadow_bottom from "./images/shadow_bottom.png";
 import shadow_top from "./images/shadow_top.png";
 import success_icon from "./images/success_icon.png";
 import tik_icon from "./images/tik_icon.png";
 import top_win from "./images/top_win.png";
-
 export const import_img = {
   success_icon,
   shadow_bottom,
@@ -31,5 +31,6 @@ export const import_img = {
   graph_icon,
   menu_icon,
   gaming_setup_neon,
-  game_win
+  game_win,
+  notify_icon
 };
