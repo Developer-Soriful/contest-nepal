@@ -1,5 +1,6 @@
 import { import_img } from "@/assets/import_img";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
 import { Image, Platform, Text, View } from "react-native";
 import CustomGradientButton from "./CustomGradientButton";
@@ -172,7 +173,7 @@ const ContestCard: React.FC<ContestCardProps> = ({
         <CustomGradientButton
           title="View Details"
           containerStyle={{ borderWidth: 0, borderRadius: 12 }}
-          onPress={() => { }}
+          onPress={() => router.push('/contest-detail')}
         />
       </View>
     </View>
