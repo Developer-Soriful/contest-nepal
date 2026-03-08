@@ -13,6 +13,7 @@ interface Props {
     activeOpacity?: number;
     style?: ViewStyle;
     borderRadius?: number;
+    backgroundColor?: string;
 }
 
 const CustomGradientButton = ({
@@ -25,8 +26,10 @@ const CustomGradientButton = ({
     textStyle,
     activeOpacity = 0.8,
     style,
-    borderRadius = 50
+    borderRadius = 50,
+    backgroundColor
 }: Props) => {
+    const gradientColors = backgroundColor ? [backgroundColor, backgroundColor] as const : colors;
     return (
         <View style={[styles.outerContainer, { borderColor: outerBorderColor }, containerStyle]}>
             <TouchableOpacity
@@ -35,7 +38,7 @@ const CustomGradientButton = ({
                 style={[styles.touchable, { borderRadius }, style]}
             >
                 <LinearGradient
-                    colors={colors} 
+                    colors={gradientColors} 
                     locations={[0.6438, 0.7543, 0.8646]}
                     start={{ x: 1, y: 0.2 }}
                     end={{ x: 0, y: 0.8 }}

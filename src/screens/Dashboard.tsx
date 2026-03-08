@@ -1,4 +1,5 @@
 import { import_img } from '@/assets/import_img';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Image,
@@ -25,7 +26,7 @@ const Dashboard = () => {
             id: 1,
             title: 'Win a Premium Gaming Setup',
             description: 'Capture the essence of summer in a single photo. We are looking for vibrant colors, outdoor adventures, and sunny vibes.',
-            image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=500', // Gaming setup placeholder
+            image: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=500', 
             status: 'Active',
             statusColor: '#00FF88',
             statusBg: '#E6FFF4',
@@ -96,23 +97,21 @@ const Dashboard = () => {
         { id: '12', title: 'UI/UX Mobile App Design', date: '01 January 2026', status: 'Rejected' },
     ];
 
-    // UPDATED: Sub-component with dynamic styling for each status
     const SubmissionItem = ({ title, date, status }: { title: string; date: string; status: string }) => {
 
-        // Define styles based on status
         const getStatusStyles = () => {
             switch (status) {
                 case 'Pending':
                     return {
                         bg: '#FFF9EB',
                         color: '#F59E0B',
-                        icon: '🕒' // Represents the clock icon in image_d44448.png
+                        icon: '🕒'
                     };
                 case 'Rejected':
                     return {
                         bg: '#FFF1F0',
                         color: '#F04438',
-                        icon: '✕' // Represents the red X in image_d440c1.png
+                        icon: '✕' 
                     };
                 default: // Approved
                     return {
@@ -126,7 +125,7 @@ const Dashboard = () => {
         const styles = getStatusStyles();
 
         return (
-            <View style={{
+            <TouchableOpacity onPress={() => router.push(`/contest-detail-screen?status=${status}`)} style={{
                 flexDirection: 'row',
                 alignItems: 'center',
                 backgroundColor: '#FFF',
@@ -163,7 +162,7 @@ const Dashboard = () => {
                     <Text style={{ fontSize: 15, fontWeight: '600', color: '#344054' }}>{title}</Text>
                     <Text style={{ fontSize: 13, color: '#98A2B3', marginTop: 4 }}>Submitted on {date}</Text>
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 
