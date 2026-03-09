@@ -1,13 +1,11 @@
-import ContestCard from '@/src/components/ContestCard';
-import HomeHeader from '@/src/components/HomeHeader';
-import PromotionalBanner from '@/src/components/PromotionalBanner';
-import SectionHeader from '@/src/components/SectionHeader';
-import React from 'react';
-import {
-  ScrollView,
-  View
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import ContestCard from "@/src/components/ContestCard";
+import HomeHeader from "@/src/components/HomeHeader";
+import PromotionalBanner from "@/src/components/PromotionalBanner";
+import SectionHeader from "@/src/components/SectionHeader";
+import { router } from "expo-router";
+import React from "react";
+import { ScrollView, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const HomePage = () => {
   return (
@@ -42,6 +40,7 @@ const HomePage = () => {
             reward="$2,500 Gaming PC + Accessories"
             date="Feb 15, 2025"
             joined="1,145"
+            onPress={() => router.push("/featuredContestDetails")}
           />
         </View>
 

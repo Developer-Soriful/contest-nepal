@@ -5,6 +5,8 @@ import React from "react";
 import { Image, Platform, Text, View } from "react-native";
 import CustomGradientButton from "./CustomGradientButton";
 
+import { ImageSourcePropType, StyleProp, ViewStyle } from "react-native";
+
 interface ContestCardProps {
   type?: "compact" | "full";
   title: string;
@@ -12,6 +14,13 @@ interface ContestCardProps {
   date: string;
   joined: string;
   isActive?: boolean;
+  imageSource?: ImageSourcePropType;
+  buttonTitle?: string;
+  onPress?: () => void;
+  containerStyle?: StyleProp<ViewStyle>;
+  badgeText?: string;
+  showBadge?: boolean;
+  showStatus?: boolean;
 }
 
 const ContestCard: React.FC<ContestCardProps> = ({
@@ -21,35 +30,45 @@ const ContestCard: React.FC<ContestCardProps> = ({
   date,
   joined,
   isActive = true,
+  imageSource = import_img.gaming_setup_neon,
+  buttonTitle = "View Details",
+  onPress = () => router.push("/contest-detail"),
+  containerStyle,
+  badgeText = "Giveaway",
+  showBadge = true,
+  showStatus = true,
 }) => {
   const isCompact = type === "compact";
 
   return (
     <View
-      style={{
-        width: isCompact ? 300 : "100%",
-        backgroundColor: "#fff",
-        borderRadius: 22,
-        padding: 12,
-        marginBottom: isCompact ? 0 : 20,
-        marginRight: isCompact ? 16 : 0,
-        ...Platform.select({
-          ios: {
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.1,
-            shadowRadius: 10,
-          },
-          android: {
-            elevation: 4,
-          },
-        }),
-      }}
+      style={[
+        {
+          width: isCompact ? 300 : "100%",
+          backgroundColor: "#fff",
+          borderRadius: 22,
+          padding: 12,
+          marginBottom: isCompact ? 0 : 20,
+          marginRight: isCompact ? 16 : 0,
+          ...Platform.select({
+            ios: {
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 10,
+            },
+            android: {
+              elevation: 4,
+            },
+          }),
+        },
+        containerStyle,
+      ]}
     >
       {/* Image Container */}
       <View style={{ position: "relative" }}>
         <Image
-          source={import_img.gaming_setup_neon}
+          source={imageSource}
           style={{
             width: "100%",
             height: isCompact ? 150 : 180,
@@ -58,33 +77,35 @@ const ContestCard: React.FC<ContestCardProps> = ({
           resizeMode="cover"
         />
         {/* Giveaway Badge */}
-        <View
-          style={{
-            position: "absolute",
-            top: 10,
-            left: 10,
-            backgroundColor: "rgba(0,0,0,0.3)",
-            paddingHorizontal: 10,
-            paddingVertical: 4,
-            borderRadius: 20,
-            flexDirection: "row",
-            alignItems: "center",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.5)",
-          }}
-        >
-          <Ionicons name="gift-outline" size={14} color="#fff" />
-          <Text
+        {showBadge && (
+          <View
             style={{
-              color: "#fff",
-              fontSize: 10,
-              fontWeight: "600",
-              marginLeft: 4,
+              position: "absolute",
+              top: 10,
+              left: 10,
+              backgroundColor: "rgba(0,0,0,0.3)",
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 20,
+              flexDirection: "row",
+              alignItems: "center",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.5)",
             }}
           >
-            Giveaway
-          </Text>
-        </View>
+            <Ionicons name="gift-outline" size={14} color="#fff" />
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 10,
+                fontWeight: "600",
+                marginLeft: 4,
+              }}
+            >
+              {badgeText}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Content */}
@@ -144,36 +165,38 @@ const ContestCard: React.FC<ContestCardProps> = ({
         </View>
 
         {/* Status Badge */}
-        <View
-          style={{
-            backgroundColor: "#e8f7ee",
-            paddingHorizontal: 12,
-            paddingVertical: 4,
-            borderRadius: 8,
-            alignSelf: "flex-start",
-            marginBottom: 16,
-            flexDirection: "row",
-            alignItems: "center",
-          }}
-        >
+        {showStatus && (
           <View
             style={{
-              width: 6,
-              height: 6,
-              borderRadius: 3,
-              backgroundColor: "#22c55e",
-              marginRight: 6,
+              backgroundColor: "#e8f7ee",
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              borderRadius: 8,
+              alignSelf: "flex-start",
+              marginBottom: 16,
+              flexDirection: "row",
+              alignItems: "center",
             }}
-          />
-          <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "600" }}>
-            {isActive ? "Active" : "Ended"}
-          </Text>
-        </View>
+          >
+            <View
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: 3,
+                backgroundColor: "#22c55e",
+                marginRight: 6,
+              }}
+            />
+            <Text style={{ color: "#22c55e", fontSize: 12, fontWeight: "600" }}>
+              {isActive ? "Active" : "Ended"}
+            </Text>
+          </View>
+        )}
         {/* View Details Button */}
         <CustomGradientButton
-          title="View Details"
+          title={buttonTitle}
           containerStyle={{ borderWidth: 0, borderRadius: 12 }}
-          onPress={() => router.push('/contest-detail')}
+          onPress={onPress}
         />
       </View>
     </View>

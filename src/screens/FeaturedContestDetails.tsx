@@ -1,0 +1,343 @@
+import { import_img } from "@/assets/import_img";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import React from "react";
+import {
+  Dimensions,
+  Image,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import ContestantCard from "../components/ContestantCard";
+import CustomGradientButton from "../components/CustomGradientButton";
+import Header from "../components/Header";
+import SectionHeader from "../components/SectionHeader";
+
+const { width } = Dimensions.get("window");
+
+// --- Theme Constants (Maintainable & Dynamic) ---
+const COLORS = {
+  primary: "#990000",
+  primaryGradient: ["#990000", "#D40000"] as const,
+  textDark: "#1F2937",
+  textSecondary: "#6B7280",
+  bgLight: "#F9FAFB",
+  cardBg: "#f5f4fe",
+  white: "#FFFFFF",
+  success: "#10B981",
+};
+
+const SectionTitle = ({ children }: { children: string }) => (
+  <Text
+    style={{
+      fontSize: 16,
+      fontWeight: "700",
+      color: "#4B5563",
+      marginBottom: 8,
+    }}
+  >
+    {children}
+  </Text>
+);
+
+const RuleItem = ({ text }: { text: string }) => (
+  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+    <Ionicons
+      name="checkmark-circle-outline"
+      size={22}
+      color={COLORS.success}
+    />
+    <Text style={{ marginLeft: 8, color: COLORS.textSecondary, fontSize: 14 }}>
+      {text}
+    </Text>
+  </View>
+);
+
+// --- Main Screen ---
+
+export default function FeaturedContestDetails() {
+  const handleParticipate = () => console.log("Participate Pressed");
+  const handleStartEntry = () => {
+    router.replace("/entry-form");
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
+      <Header title="Contest Details" backgroundColor="transparent" />
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Banner Image */}
+        <View style={{ padding: 16 }}>
+          <Image
+            source={{
+              uri: "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop",
+            }}
+            style={{ width: "100%", height: 200, borderRadius: 16 }}
+            resizeMode="cover"
+          />
+        </View>
+
+        <View style={{ paddingHorizontal: 16 }}>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "800",
+              color: "#111827",
+              marginBottom: 12,
+            }}
+          >
+            Weekly Gift Card Drop
+          </Text>
+
+          <SectionTitle>About this Contest</SectionTitle>
+          <Text
+            style={{
+              color: COLORS.textSecondary,
+              lineHeight: 20,
+              marginBottom: 20,
+            }}
+          >
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
+            ad minim veniam.
+          </Text>
+
+          <SectionTitle>Rules & Requirement</SectionTitle>
+          <RuleItem text="Login daily to enter" />
+          <RuleItem text="Complete all profile details" />
+          <RuleItem text="Follow our social handles" />
+
+          {/* How to Participate Card */}
+          <View
+            style={{
+              backgroundColor: COLORS.cardBg,
+              borderRadius: 16,
+              padding: 16,
+              marginTop: 20,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <Ionicons
+                name="alert-circle-outline"
+                size={24}
+                color={COLORS.primary}
+              />
+              <Text
+                style={{
+                  marginLeft: 8,
+                  fontWeight: "700",
+                  color: COLORS.textDark,
+                }}
+              >
+                How to participate
+              </Text>
+            </View>
+            <Text
+              style={{
+                color: COLORS.textSecondary,
+                fontSize: 13,
+                marginBottom: 16,
+              }}
+            >
+              Complete the tasks listed in the entry form to earn your chance to
+              win. The more tasks you complete, the higher your chances!
+            </Text>
+            <TouchableOpacity activeOpacity={0.8}>
+              <CustomGradientButton
+                containerStyle={{ borderRadius: 10 }}
+                borderRadius={10}
+                title="Start Entry"
+                onPress={handleStartEntry}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Grand Prize Card */}
+          <View
+            style={{
+              backgroundColor: COLORS.cardBg,
+              borderRadius: 16,
+              padding: 16,
+              marginTop: 16,
+              flexDirection: "row",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "#fff",
+                padding: 8,
+                borderRadius: 8,
+                marginRight: 12,
+              }}
+            >
+              <Ionicons name="trophy-outline" size={24} color="#D97706" />
+            </View>
+            <View>
+              <Text style={{ fontSize: 14, color: COLORS.textSecondary }}>
+                Grand Prize
+              </Text>
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "800",
+                  color: COLORS.textDark,
+                }}
+              >
+                $50 Amazon Gift Card
+              </Text>
+              <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>
+                Plus recognition on our platform
+              </Text>
+            </View>
+          </View>
+
+          {/* Contest Stats */}
+          <View
+            style={{
+              backgroundColor: COLORS.cardBg,
+              borderRadius: 16,
+              padding: 16,
+              marginTop: 16,
+              marginBottom: 20,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: "#fff",
+                  padding: 6,
+                  borderRadius: 6,
+                  marginRight: 10,
+                }}
+              >
+                <Ionicons name="stats-chart" size={18} color={COLORS.primary} />
+              </View>
+              <Text style={{ fontWeight: "700", color: COLORS.textDark }}>
+                Contest Stats
+              </Text>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons
+                  name="people-outline"
+                  size={20}
+                  color={COLORS.textSecondary}
+                />
+                <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>
+                  Participants
+                </Text>
+              </View>
+              <Text style={{ fontWeight: "600" }}>120 Person</Text>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons
+                  name="time-outline"
+                  size={20}
+                  color={COLORS.textSecondary}
+                />
+                <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>
+                  Time left
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {["25", "36", "55"].map((time, i) => (
+                  <React.Fragment key={i}>
+                    <View
+                      style={{
+                        backgroundColor: "#fff",
+                        padding: 4,
+                        borderRadius: 4,
+                        minWidth: 30,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text
+                        style={{ color: COLORS.primary, fontWeight: "700" }}
+                      >
+                        {time}
+                      </Text>
+                    </View>
+                    {i < 2 && (
+                      <Text
+                        style={{ marginHorizontal: 4, color: COLORS.primary }}
+                      >
+                        :
+                      </Text>
+                    )}
+                  </React.Fragment>
+                ))}
+              </View>
+            </View>
+          </View>
+        </View>
+        <View
+          style={{
+            width: "100%",
+            padding: 16,
+            backgroundColor: "#fff",
+          }}
+        >
+          <CustomGradientButton
+            containerStyle={{ borderRadius: 10 }}
+            borderRadius={10}
+            title="Participate Now"
+            onPress={handleParticipate}
+          />
+        </View>
+
+        <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
+          <SectionHeader
+            title="All Contestent"
+            arrowIcon="grid-outline"
+            onViewAllPress={() => router.push("/all-contestants")}
+          />
+        </View>
+        {/* All Contestent */}
+        <View style={{ paddingHorizontal: 16 }}>
+          <ContestantCard
+            image={import_img.gaming_setup_neon}
+            title="Win a Premium Gaming Setup"
+            description="Best landscape photography wins! Results are now live."
+            avatar={{ uri: "https://i.pravatar.cc/150?u=seam" }}
+            userName="SEAM RAHMAN"
+            votes={156}
+            onVote={() => console.log("Voted for SEAM")}
+          />
+        </View>
+      </ScrollView>
+
+      {/* Sticky Bottom Button */}
+    </SafeAreaView>
+  );
+}
