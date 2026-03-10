@@ -16,7 +16,7 @@ const HomePage = () => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 30 }}
+        contentContainerStyle={{ paddingBottom: 60 }}
       >
         {/* Promotional Banner */}
         <PromotionalBanner />

@@ -118,8 +118,7 @@ const ContestantCard: React.FC<ContestantCardProps> = ({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFFFFF",
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderRadius: 24,
     padding: 12,
     marginBottom: 20,
     ...Platform.select({
