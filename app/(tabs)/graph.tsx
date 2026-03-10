@@ -1,13 +1,8 @@
-import React from 'react'
-import { Text } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import GraphScreen from "@/src/screens/GraphScreen";
+import React from "react";
 
 const GraphPage = () => {
-    return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#ebf3f4' }}>
-            <Text>GraphPage</Text>
-        </SafeAreaView>
-    )
-}
+  return <GraphScreen />;
+};
 
-export default GraphPage
+export default GraphPage;

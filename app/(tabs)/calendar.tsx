@@ -1,13 +1,8 @@
-import React from 'react'
-import { Text } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import CalendarScreen from "@/src/screens/CalendarScreen";
+import React from "react";
 
 const CalendarPage = () => {
-    return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#ebf3f4' }}>
-            <Text>CalendarPage</Text>
-        </SafeAreaView>
-    )
-}
+  return <CalendarScreen />;
+};
 
-export default CalendarPage
+export default CalendarPage;
