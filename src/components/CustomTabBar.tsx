@@ -2,13 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  
   return (
     <View
       style={{
         position: "absolute",
-        bottom: Platform.OS === "ios" ? 30 : 20,
+        bottom: Platform.OS === "ios" ? Math.max(insets.bottom, 20) : Math.max(insets.bottom, 16),
         width: "100%",
         alignItems: "center",
         paddingHorizontal: 18,

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Signup() {
     const [name, setName] = useState("");
@@ -13,17 +14,17 @@ export default function Signup() {
     const [acceptTerms, setAcceptTerms] = useState(false);
 
     return (
-        <View style={{ flex: 1, backgroundColor: "#fff" }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
             >
                 <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
                     {/* Top Logo Section */}
-                    <View style={{ height: 260, justifyContent: "center", alignItems: "center" }}>
+                    <View style={{ height: 220, justifyContent: "center", alignItems: "center" }}>
                         <Image
                             source={import_img.icon}
-                            style={{ width: 180, height: 180 }}
+                            style={{ width: 160, height: 160 }}
                             resizeMode="contain"
                         />
                     </View>
@@ -137,7 +138,7 @@ export default function Signup() {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
-        </View>
+        </SafeAreaView>
     );
 }
 

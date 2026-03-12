@@ -9,7 +9,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import CustomGradientButton from '../components/CustomGradientButton';
 import Header from '../components/Header';
 
@@ -41,6 +41,7 @@ const RuleItem = ({ text }: { text: string }) => (
 // --- Main Screen ---
 
 export default function ContestDetailsScreen() {
+    const insets = useSafeAreaInsets();
     const handleParticipate = () => console.log('Participate Pressed');
     const handleStartEntry = () => {
         router.replace('/entry-form');
@@ -147,7 +148,16 @@ export default function ContestDetailsScreen() {
             </ScrollView>
 
             {/* Sticky Bottom Button */}
-            <View style={{ position: 'absolute', bottom: 0, width: '100%', padding: 16, backgroundColor: '#fff' }}>
+            <View style={{ 
+                position: 'absolute', 
+                bottom: 0, 
+                width: '100%', 
+                padding: 16, 
+                paddingBottom: Math.max(insets.bottom, 16),
+                backgroundColor: '#fff',
+                borderTopWidth: 1,
+                borderTopColor: '#f0f0f0'
+            }}>
                 <CustomGradientButton
                     containerStyle={{ borderRadius: 10 }}
                     borderRadius={10}

@@ -169,7 +169,7 @@ const Dashboard = () => {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
             <Header title="Dashboard" />
-            <ScrollView contentContainerStyle={{ padding: 15 }}>
+            <ScrollView contentContainerStyle={{ padding: 15, paddingBottom: 40 }}>
 
                 {/* Stats Row */}
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 20 }}>

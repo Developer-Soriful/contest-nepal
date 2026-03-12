@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { Dimensions, Image, StyleSheet, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
 const { width, height } = Dimensions.get("window");
 
@@ -64,18 +65,20 @@ export default function RootLayout() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-      </Stack>
-      <View pointerEvents="none" style={styles.globalTopShadow}>
-        <Image
-          source={require("../assets/images/global_shadow.png")}
-          style={{ width: "100%", height: "100%" }}
-          resizeMode="stretch"
-        />
+    <SafeAreaProvider>
+      <View style={{ flex: 1 }}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+        </Stack>
+        <View pointerEvents="none" style={styles.globalTopShadow}>
+          <Image
+            source={require("../assets/images/global_shadow.png")}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="stretch"
+          />
+        </View>
       </View>
-    </View>
+    </SafeAreaProvider>
   );
 }
 

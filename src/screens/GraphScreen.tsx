@@ -140,10 +140,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#ebf3f4",
-    marginBottom: 20,
+    paddingBottom: 30,
   },
   scrollContent: {
-    paddingBottom: 110,
+    paddingBottom: 60,
     paddingTop: 10,
   },
   statsRow: {

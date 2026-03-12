@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingBottom: 30,
+    paddingBottom: 40,
   },
   userCard: {
     flexDirection: "row",

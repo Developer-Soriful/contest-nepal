@@ -10,13 +10,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 const HomePage = () => {
   return (
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#ebf3f4", marginBottom: 20 }}
+      style={{ flex: 1, backgroundColor: "#ebf3f4", marginBottom: 30 }}
     >
       <HomeHeader />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 60 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
       >
         {/* Promotional Banner */}
         <PromotionalBanner />

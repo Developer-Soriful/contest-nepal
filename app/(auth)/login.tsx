@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Login() {
     const [email, setEmail] = useState("");
@@ -14,17 +15,17 @@ export default function Login() {
         router.navigate("/(tabs)" as any);
     }
     return (
-        <View style={{ flex: 1 }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
             >
                 <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
                     {/* Top Logo Section */}
-                    <View style={{ height: 260, justifyContent: "center", alignItems: "center" }}>
+                    <View style={{ height: 220, justifyContent: "center", alignItems: "center" }}>
                         <Image
                             source={import_img.icon}
-                            style={{ width: 180, height: 180 }}
+                            style={{ width: 160, height: 160 }}
                             resizeMode="contain"
                         />
                     </View>
@@ -38,7 +39,7 @@ export default function Login() {
                             borderTopRightRadius: 34,
                             paddingHorizontal: 18,
                             paddingTop: 40,
-                            paddingBottom: 30,
+                            paddingBottom: 40,
                             borderTopWidth: 1,
                             borderLeftWidth: 1,
                             borderRightWidth: 1,
@@ -148,7 +149,7 @@ export default function Login() {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
-        </View>
+        </SafeAreaView>
     );
 }
 

@@ -3,12 +3,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ForgotPassword() {
     const [emailOrPhone, setEmailOrPhone] = useState("");
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -74,7 +75,7 @@ export default function ForgotPassword() {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -88,8 +89,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "space-between",
         paddingHorizontal: 20,
-        paddingTop: Platform.OS === "ios" ? 50 : 20,
-        height: 100,
+        height: 60,
     },
     backButton: {
         width: 40,
