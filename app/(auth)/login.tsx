@@ -76,7 +76,7 @@ export default function Login() {
                   paddingLeft: 5,
                 }}
               >
-                Enter your E-mail or Number
+                Enter your Email or Phone Number
               </Text>
               <View style={styles.inputContainer}>
                 <Ionicons name="mail-outline" size={20} color="#888" />

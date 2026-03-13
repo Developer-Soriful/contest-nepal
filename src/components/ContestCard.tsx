@@ -44,7 +44,7 @@ const ContestCard: React.FC<ContestCardProps> = ({
     <View
       style={[
         {
-          width: isCompact ? 300 : "100%",
+          width: isCompact ? 260 : "100%",
           backgroundColor: "#fff",
           borderRadius: 22,
           padding: 12,
@@ -71,7 +71,7 @@ const ContestCard: React.FC<ContestCardProps> = ({
           source={imageSource}
           style={{
             width: "100%",
-            height: isCompact ? 150 : 180,
+            height: isCompact ? 140 : 170,
             borderRadius: 18,
           }}
           resizeMode="cover"

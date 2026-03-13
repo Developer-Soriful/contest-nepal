@@ -1,15 +1,14 @@
-import { import_img } from "@/assets/import_img";
 import { useLocalSearchParams } from "expo-router";
 import React from "react";
 import { Image, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import ContestantCard from "../components/ContestantCard";
 import CustomGradientButton from "../components/CustomGradientButton";
 import Header from "../components/Header";
 
 const Contest_Detail_Screen = () => {
   const searchParams = useLocalSearchParams();
   const submissionStatus = searchParams.status;
+  const rejectionReason = searchParams.reason as string | undefined;
   console.log("submissionStatus", submissionStatus);
   return (
     <SafeAreaView style={{ flex: 1 }}>
@@ -279,33 +278,65 @@ const Contest_Detail_Screen = () => {
             </View>
           )}
 
-          {submissionStatus === "Approved" && (
-            <ContestantCard
-              image={import_img.gaming_setup_neon}
-              title="Win a Premium Gaming Setup"
-              description="Best landscape photography wins! Results are now live."
-              avatar={{ uri: "https://i.pravatar.cc/150?u=seam" }}
-              userName="SEAM RAHMAN"
-              votes={156}
-              onVote={() => {}}
-              showWinnerBadge={true}
-            />
-          )}
+          {/* Removed all-contestants / entries preview here — users must tap View Entries to see and vote on entries. */}
           {submissionStatus === "Rejected" && (
             <View
               style={{
-                backgroundColor: "#f5f4fe",
-                borderRadius: 20,
+                backgroundColor: "#FFF6F6",
+                borderRadius: 16,
                 padding: 16,
                 borderWidth: 1,
-                borderColor: "rgba(91, 81, 255, 0.20)",
+                borderColor: "rgba(240, 68, 56, 0.12)",
+                marginBottom: 12,
               }}
             >
               <Text
-                style={{ fontSize: 14, fontWeight: "500", color: "#990009" }}
+                style={{
+                  fontSize: 16,
+                  fontWeight: "700",
+                  color: "#C53030",
+                  marginBottom: 6,
+                }}
               >
-                This contest has ended. Winner announcement coming soon!{" "}
+                Submission Rejected
               </Text>
+              <Text
+                style={{ fontSize: 14, color: "#6B7280", marginBottom: 10 }}
+              >
+                We're sorry — your submission did not meet the organizer's
+                requirements.
+              </Text>
+              {rejectionReason ? (
+                <View
+                  style={{
+                    backgroundColor: "#FFF1F0",
+                    padding: 12,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: "#FEE2E2",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      color: "#B45309",
+                      fontWeight: "600",
+                      marginBottom: 6,
+                    }}
+                  >
+                    Reason
+                  </Text>
+                  <Text
+                    style={{ fontSize: 14, color: "#374151", lineHeight: 20 }}
+                  >
+                    {rejectionReason}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={{ fontSize: 13, color: "#6B7280" }}>
+                  No additional details provided.
+                </Text>
+              )}
             </View>
           )}
           {submissionStatus === "Pending" && (
