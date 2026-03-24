@@ -1,7 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React from "react";
-import { Dimensions, Image, ScrollView, Text, View } from "react-native";
+import {
+  Dimensions,
+  Image,
+  ScrollView,
+  Share,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -10,6 +18,7 @@ import CustomGradientButton from "../components/CustomGradientButton";
 import Header from "../components/Header";
 import OrganizerInfo from "../components/OrganizerInfo";
 import PollComponent from "../components/PollComponent";
+import ReportModal from "../components/ReportModal";
 
 const { width } = Dimensions.get("window");
 
@@ -56,7 +65,20 @@ const RuleItem = ({ text }: { text: string }) => (
 export default function ContestDetailsScreen() {
   const insets = useSafeAreaInsets();
   const searchParams = useLocalSearchParams();
+  const [isReportModalVisible, setIsReportModalVisible] = React.useState(false);
   const contestType = (searchParams.type as string) || "standard";
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `Check out this contest on Contest Hub: Weekly Gift Card Drop! Join now and win exciting prizes. https://contesthub.app/contest/123`,
+        title: "Weekly Gift Card Drop",
+      });
+    } catch (error) {
+      console.error("Error sharing:", error);
+    }
+  };
+
   const handleParticipate = () => console.log("Participate Pressed");
   const handleStartEntry = () => {
     router.replace("/entry-form");
@@ -67,7 +89,44 @@ export default function ContestDetailsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
-      <Header title="Contest Details" backgroundColor="transparent" />
+      <Header
+        title="Contest Details"
+        backgroundColor="transparent"
+        rightElement={
+          <View style={{ flexDirection: "row", gap: 12 }}>
+            <TouchableOpacity
+              onPress={handleShare}
+              activeOpacity={0.7}
+              style={{
+                padding: 8,
+                backgroundColor: "#FFF",
+                borderRadius: 100,
+                borderWidth: 0.6,
+                borderColor: COLORS.primary,
+              }}
+            >
+              <Ionicons
+                name="share-social-outline"
+                size={18}
+                color={COLORS.primary}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setIsReportModalVisible(true)}
+              activeOpacity={0.7}
+              style={{
+                padding: 8,
+                backgroundColor: "#FFF",
+                borderRadius: 100,
+                borderWidth: 0.6,
+                borderColor: COLORS.primary,
+              }}
+            >
+              <Ionicons name="flag-outline" size={18} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
+        }
+      />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -349,6 +408,12 @@ export default function ContestDetailsScreen() {
           onPress={handleViewEntries}
         />
       </View>
+      {/* Report Modal */}
+      <ReportModal
+        isVisible={isReportModalVisible}
+        onClose={() => setIsReportModalVisible(false)}
+        targetName="Weekly Gift Card Drop"
+      />
     </SafeAreaView>
   );
 }

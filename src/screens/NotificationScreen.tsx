@@ -1,3 +1,4 @@
+import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { import_img } from "@/assets/import_img";
 import Header from "@/src/components/Header";
 import { router } from "expo-router";
@@ -69,33 +70,74 @@ const notifications: NotificationData[] = [
   },
 ];
 
-const NotificationItem = ({ item }: { item: NotificationData }) => (
-  <TouchableOpacity
-    style={styles.notificationCard}
-    activeOpacity={0.7}
-    onPress={() =>
-      router.push({
-        pathname: "/notification-detail",
-        params: {
-          id: item.id,
-          title: item.title,
-          message: item.message,
-          time: item.time,
-          category: item.type,
-        },
-      })
+const NotificationItem = ({ item }: { item: NotificationData }) => {
+  const getIcon = () => {
+    switch (item.type) {
+      case "prize":
+        return {
+          icon: <MaterialIcons name="card-giftcard" size={18} color="#fff" />,
+          bg: "#34D399",
+        };
+      case "contest":
+        return {
+          icon: <Feather name="bell" size={18} color="#fff" />,
+          bg: "#60A5FA",
+        };
+      case "entry":
+        return {
+          icon: <Ionicons name="checkmark-circle" size={18} color="#fff" />,
+          bg: "#10B981",
+        };
+      case "reminder":
+        return {
+          icon: <Ionicons name="timer-outline" size={18} color="#fff" />,
+          bg: "#A30000",
+        };
+      case "reward":
+        return {
+          icon: <Ionicons name="star" size={18} color="#fff" />,
+          bg: "#F59E0B",
+        };
+      default:
+        return {
+          icon: <Ionicons name="notifications-outline" size={18} color="#fff" />,
+          bg: "#A30000",
+        };
     }
-  >
-    <View style={styles.cardHeader}>
-      <Image source={import_img.notify_icon} style={styles.icon} />
-      <Text style={styles.title}>{item.title}</Text>
-    </View>
-    <View style={styles.cardContent}>
-      <Text style={styles.message}>{item.message}</Text>
-      <Text style={styles.time}>{item.time}</Text>
-    </View>
-  </TouchableOpacity>
-);
+  };
+
+  const { icon, bg } = getIcon();
+
+  return (
+    <TouchableOpacity
+      style={styles.notificationCard}
+      activeOpacity={0.7}
+      onPress={() =>
+        router.push({
+          pathname: "/notification-detail",
+          params: {
+            id: item.id,
+            title: item.title,
+            message: item.message,
+            time: item.time,
+            category: item.type,
+          },
+        })
+      }
+    >
+      <View style={styles.cardHeader}>
+        <View style={[styles.iconCircle, { backgroundColor: bg }]}>
+          {icon}
+        </View>
+        <Text style={styles.title}>{item.title}</Text>
+      </View>
+      <View style={styles.cardContent}>
+        <Text style={styles.message}>{item.message}</Text>
+        <Text style={styles.time}>{item.time}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const NotificationScreen = () => {
   const categories: NotificationData["category"][] = [
@@ -162,8 +204,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 15,
     marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#A30000",
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -173,20 +215,23 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  icon: {
-    width: 20,
-    height: 20,
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
   },
   title: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     color: "#1D2939",
   },
   cardContent: {
-    paddingLeft: 30, // Align message with title text
+    paddingLeft: 44, // 32 (icon) + 12 (margin)
   },
   message: {
     fontSize: 14,
@@ -194,10 +239,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   time: {
-    fontSize: 12,
-    color: "#98A2B3",
+    fontSize: 13,
+    color: "#5B6477",
     marginTop: 8,
-    fontWeight: "500",
+    fontWeight: "700",
   },
 });
 

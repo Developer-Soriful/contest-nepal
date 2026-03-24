@@ -11,6 +11,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
+import ReportModal from "@/src/components/ReportModal";
 import {
   Modal,
   ScrollView,
@@ -49,6 +50,7 @@ const Section = ({ title, children }: any) => (
 
 const MenuScreen = () => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
 
   const handleLogout = () => {
     setShowLogoutModal(false);
@@ -123,6 +125,18 @@ const MenuScreen = () => {
             <MenuItem
               icon={
                 <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={18}
+                  color="#667085"
+                />
+              }
+              title="Feedback & Report"
+              onPress={() => setIsReportModalVisible(true)}
+            />
+            <View style={styles.divider} />
+            <MenuItem
+              icon={
+                <Ionicons
                   name="document-text-outline"
                   size={18}
                   color="#667085"
@@ -192,6 +206,12 @@ const MenuScreen = () => {
           </View>
         </View>
       </Modal>
+      {/* Report Modal */}
+      <ReportModal
+        isVisible={isReportModalVisible}
+        onClose={() => setIsReportModalVisible(false)}
+        targetName="App Feedback"
+      />
     </SafeAreaView>
   );
 };
