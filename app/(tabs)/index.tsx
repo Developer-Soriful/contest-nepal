@@ -21,28 +21,74 @@ const HomePage = () => {
         {/* Promotional Banner */}
         <PromotionalBanner />
         {/* Your Activity Section */}
-        <View style={{ paddingHorizontal: 18, marginTop: 20 }}>
-          <SectionHeader title="Your Activity" />
-          <ContestCard
-            title="Win a Premium Gaming Setup"
-            reward="$2,500 Gaming PC + Accessories"
-            date="Feb 15, 2025"
-            joined="1,145"
-          />
+        <View style={{ marginTop: 20 }}>
+          <View style={{ paddingHorizontal: 18 }}>
+            <SectionHeader title="Your Activity" />
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 18,
+              paddingVertical: 8,
+            }}
+          >
+            {[
+              {
+                id: "a-1",
+                title: "Win a Premium Gaming Setup",
+                reward: "$2,500 Gaming PC + Accessories",
+                date: "Feb 15, 2026",
+                joined: "1,145",
+                badge: "Active",
+              },
+              {
+                id: "a-2",
+                title: "Wildlife Photo Contest",
+                reward: "Canon EOS R5 Camera",
+                date: "Mar 10, 2026",
+                joined: "450",
+                badge: "In Progress",
+              },
+              {
+                id: "a-3",
+                title: "UI/UX Design Challenge",
+                reward: "Adobe CC Subscription",
+                date: "Mar 25, 2026",
+                joined: "280",
+                badge: "Submitted",
+              },
+            ].map((c) => (
+              <ContestCard
+                key={c.id}
+                title={c.title}
+                reward={c.reward}
+                date={c.date}
+                joined={c.joined}
+                badgeText={c.badge}
+                containerStyle={{ width: 300, marginRight: 16, marginBottom: 0 }}
+              />
+            ))}
+          </ScrollView>
         </View>
         {/* Promotional Banner */}
         <PromotionalBanner marginBottom={32} />
         {/* Featured Contest Section */}
-        <View style={{ paddingHorizontal: 18, marginTop: 10 }}>
-          <SectionHeader
-            title="Featured Contest"
-            arrowIcon="grid-outline"
-            onViewAllPress={() => router.push("/all-contests?section=featured")}
-          />
+        <View style={{ marginTop: 10 }}>
+          <View style={{ paddingHorizontal: 18 }}>
+            <SectionHeader
+              title="Featured Contest"
+              arrowIcon="grid-outline"
+              onViewAllPress={() => router.push("/all-contests?section=featured")}
+            />
+          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingVertical: 8, paddingRight: 18 }}
+            contentContainerStyle={{
+              paddingHorizontal: 18,
+              paddingVertical: 8,
+            }}
           >
             {[
               {
@@ -81,7 +127,6 @@ const HomePage = () => {
             ].map((c) => (
               <ContestCard
                 key={c.id}
-                type="compact"
                 title={c.title}
                 reward={c.reward}
                 date={c.date}
@@ -92,22 +137,28 @@ const HomePage = () => {
                 onPress={() =>
                   router.push(`/featuredContestDetails?contestId=${c.id}`)
                 }
+                containerStyle={{ width: 300, marginRight: 16, marginBottom: 0 }}
               />
             ))}
           </ScrollView>
         </View>
 
         {/* Contest nearby Section */}
-        <View style={{ paddingHorizontal: 18, marginTop: 10 }}>
-          <SectionHeader
-            title="Contest nearby"
-            arrowIcon="grid-outline"
-            onViewAllPress={() => router.push("/all-contests?section=nearby")}
-          />
+        <View style={{ marginTop: 10 }}>
+          <View style={{ paddingHorizontal: 18 }}>
+            <SectionHeader
+              title="Contest nearby"
+              arrowIcon="grid-outline"
+              onViewAllPress={() => router.push("/all-contests?section=nearby")}
+            />
+          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ paddingVertical: 8, paddingRight: 18 }}
+            contentContainerStyle={{
+              paddingHorizontal: 18,
+              paddingVertical: 8,
+            }}
           >
             {[
               {
@@ -135,7 +186,6 @@ const HomePage = () => {
             ].map((c) => (
               <ContestCard
                 key={c.id}
-                type="compact"
                 title={c.title}
                 reward={c.reward}
                 date={c.date}
@@ -143,6 +193,7 @@ const HomePage = () => {
                 imageSource={{ uri: c.image }}
                 isActive={c.isActive}
                 badgeText={c.badge}
+                containerStyle={{ width: 300, marginRight: 16, marginBottom: 0 }}
               />
             ))}
           </ScrollView>

@@ -68,14 +68,12 @@ export default function Signup() {
 
             {/* Email Field */}
             <View style={{ marginBottom: 20 }}>
-              <Text style={styles.label}>
-                Enter your e-mail address or phone number
-              </Text>
+              <Text style={styles.label}>Enter your Email or phone number</Text>
               <View style={styles.inputContainer}>
                 <Ionicons name="mail-outline" size={20} color="#888" />
                 <TextInput
                   style={styles.input}
-                  placeholder="E-mail address or phone number"
+                  placeholder="Email or phone number"
                   placeholderTextColor="#aaa"
                   value={email}
                   onChangeText={setEmail}

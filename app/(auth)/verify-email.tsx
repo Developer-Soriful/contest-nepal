@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function VerifyEmail() {
     const [code, setCode] = useState(['', '', '', '', '', '']);
-    const inputs = useRef<Array<TextInput | null>>([]);
+    const inputs = useRef<(TextInput | null)[]>([]);
 
     const handleInput = (text: string, index: number) => {
         const newCode = [...code];

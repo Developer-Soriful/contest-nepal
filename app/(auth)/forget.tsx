@@ -3,14 +3,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -54,7 +54,7 @@ export default function ForgotPassword() {
               <Ionicons name="mail-outline" size={20} color="#888" />
               <TextInput
                 style={styles.input}
-                placeholder="E-mail address or phone number"
+                placeholder="Email or phone number"
                 placeholderTextColor="#aaa"
                 value={emailOrPhone}
                 onChangeText={setEmailOrPhone}

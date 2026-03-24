@@ -2,10 +2,10 @@ import { import_img } from "@/assets/import_img";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Image, Platform, Text, View } from "react-native";
+import { Image, Platform, Text, View , ImageSourcePropType, StyleProp, ViewStyle } from "react-native";
 import CustomGradientButton from "./CustomGradientButton";
 
-import { ImageSourcePropType, StyleProp, ViewStyle } from "react-native";
+
 
 interface ContestCardProps {
   type?: "compact" | "full";
@@ -48,7 +48,7 @@ const ContestCard: React.FC<ContestCardProps> = ({
           backgroundColor: "#fff",
           borderRadius: 22,
           padding: 12,
-          marginBottom: isCompact ? 0 : 20,
+          marginBottom: isCompact ? 0 : 16,
           marginRight: isCompact ? 16 : 0,
           ...Platform.select({
             ios: {

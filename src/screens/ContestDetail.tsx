@@ -1,17 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React from "react";
+import { Dimensions, Image, ScrollView, Text, View } from "react-native";
 import {
-    Dimensions,
-    Image,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
-} from "react-native";
-import {
-    SafeAreaView,
-    useSafeAreaInsets,
+  SafeAreaView,
+  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import CustomGradientButton from "../components/CustomGradientButton";
 import Header from "../components/Header";
@@ -161,20 +154,12 @@ export default function ContestDetailsScreen() {
               style={{
                 color: COLORS.textSecondary,
                 fontSize: 13,
-                marginBottom: 16,
+                marginBottom: 4, // Reduced margin
               }}
             >
               Complete the tasks listed in the entry form to earn your chance to
               win. The more tasks you complete, the higher your chances!
             </Text>
-            <TouchableOpacity activeOpacity={0.8}>
-              <CustomGradientButton
-                containerStyle={{ borderRadius: 10 }}
-                borderRadius={10}
-                title="Participate Now"
-                onPress={handleStartEntry}
-              />
-            </TouchableOpacity>
           </View>
 
           {/* Grand Prize Card */}
@@ -334,7 +319,7 @@ export default function ContestDetailsScreen() {
         </View>
       )}
 
-      {/* Sticky Bottom Button */}
+      {/* Sticky Bottom Buttons */}
       <View
         style={{
           position: "absolute",
@@ -345,12 +330,22 @@ export default function ContestDetailsScreen() {
           backgroundColor: "#fff",
           borderTopWidth: 1,
           borderTopColor: "#f0f0f0",
+          flexDirection: "row",
+          gap: 12,
         }}
       >
         <CustomGradientButton
-          containerStyle={{ borderRadius: 10 }}
+          containerStyle={{ flex: 1, borderRadius: 10 }}
+          borderRadius={10}
+          title="Participate Now"
+          onPress={handleStartEntry}
+        />
+        <CustomGradientButton
+          containerStyle={{ flex: 1, borderRadius: 10 }}
           borderRadius={10}
           title="View Entries"
+          backgroundColor="#111827"
+          outerBorderColor="#111827"
           onPress={handleViewEntries}
         />
       </View>
