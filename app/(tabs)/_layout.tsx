@@ -4,7 +4,12 @@ import React from 'react';
 
 const HomeLayout = () => {
     return (
-        <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <CustomTabBar {...props} />}>
+        <Tabs 
+            screenOptions={{ 
+                headerShown: false
+            }} 
+            tabBar={(props) => <CustomTabBar {...props} />}
+        >
             <Tabs.Screen name="index" options={{ title: 'Home' }} />
             <Tabs.Screen name="calendar" options={{ title: 'Calendar' }} />
             <Tabs.Screen name="graph" options={{ title: 'Graph' }} />

@@ -1,12 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
+import React, { useEffect } from "react";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function CustomTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
-  
+  const focusedIndex = useSharedValue(state.index);
+
+  useEffect(() => {
+    focusedIndex.value = state.index;
+  }, [state.index, focusedIndex]);
+
   return (
     <View
       style={{
@@ -22,9 +28,8 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
           display: "flex",
           flexDirection: "row",
           padding: 4,
-          justifyContent: "center",
+          justifyContent: "space-between",
           alignItems: "center",
-          gap: 6.749,
           borderRadius: 53.991,
           borderWidth: 1,
           borderColor: "white",
@@ -68,19 +73,41 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
             if (name === "menu" || name === "Menu") return "grid-outline";
             return "home-outline";
           };
+
+          const animatedStyle = useAnimatedStyle(() => {
+            const isFocused = focusedIndex.value === index;
+            return {
+              width: withTiming(isFocused ? 120 : 52, { duration: 300, easing: Easing.out(Easing.exp) }),
+              transform: [
+                { scale: withTiming(isFocused ? 1.05 : 1, { duration: 200 }) }
+              ]
+            };
+          });
+
+          const iconAnimatedStyle = useAnimatedStyle(() => {
+            const isFocused = focusedIndex.value === index;
+            return {
+              transform: [
+                { scale: withTiming(isFocused ? 1.1 : 1, { duration: 200 }) }
+              ],
+              opacity: withTiming(isFocused ? 1 : 0.7, { duration: 200 })
+            };
+          });
           return (
-            <TouchableOpacity
+            <Animated.View
               key={index}
-              onPress={onPress}
-              activeOpacity={0.9}
-              style={{
-                flex: isFocused ? 1 : undefined,
-                width: isFocused ? undefined : 52,
-                height: 52,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+              style={animatedStyle}
             >
+              <TouchableOpacity
+                onPress={onPress}
+                activeOpacity={0.9}
+                style={{
+                  width: '100%',
+                  height: 52,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
               {isFocused ? (
                 <LinearGradient
                   colors={["#990009", "#C21923"]}
@@ -150,6 +177,7 @@ export default function CustomTabBar({ state, descriptors, navigation }: any) {
                 </View>
               )}
             </TouchableOpacity>
+            </Animated.View>
           );
         })}
       </View>
