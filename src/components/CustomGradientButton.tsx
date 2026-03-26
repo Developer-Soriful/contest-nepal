@@ -1,13 +1,15 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
-  StyleSheet,
-  Text,
-  TextStyle,
-  TouchableOpacity,
-  View,
-  ViewStyle,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextStyle,
+    ViewStyle
 } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface Props {
   title: string;
@@ -39,17 +41,34 @@ const CustomGradientButton = ({
   const gradientColors = backgroundColor
     ? ([backgroundColor, backgroundColor] as const)
     : colors;
+  
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withTiming(0.96, { duration: 80 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 200 });
+  };
+
   return (
-    <View
+    <Animated.View
       style={[
         styles.outerContainer,
         { borderColor: outerBorderColor },
         containerStyle,
+        animatedStyle,
       ]}
     >
-      <TouchableOpacity
-        activeOpacity={activeOpacity}
+      <AnimatedPressable
         onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
         style={[styles.touchable, { borderRadius }, style]}
       >
         <LinearGradient
@@ -64,8 +83,8 @@ const CustomGradientButton = ({
         >
           <Text style={[styles.text, textStyle]}>{title}</Text>
         </LinearGradient>
-      </TouchableOpacity>
-    </View>
+      </AnimatedPressable>
+    </Animated.View>
   );
 };
 

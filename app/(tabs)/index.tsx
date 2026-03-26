@@ -23,7 +23,11 @@ const HomePage = () => {
         {/* Your Activity Section */}
         <View style={{ marginTop: 20 }}>
           <View style={{ paddingHorizontal: 18 }}>
-            <SectionHeader title="Your Activity" />
+            <SectionHeader
+              title="Your Activity"
+              arrowIcon="grid-outline"
+              onViewAllPress={() => router.push("/all-activities")}
+            />
           </View>
           <ScrollView
             horizontal

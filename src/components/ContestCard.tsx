@@ -2,10 +2,13 @@ import { import_img } from "@/assets/import_img";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Image, Platform, Text, View , ImageSourcePropType, StyleProp, ViewStyle } from "react-native";
+import { Image, ImageSourcePropType, Platform, Pressable, StyleProp, Text, View, ViewStyle } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import CustomGradientButton from "./CustomGradientButton";
 
 
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface ContestCardProps {
   type?: "compact" | "full";
@@ -39,9 +42,25 @@ const ContestCard: React.FC<ContestCardProps> = ({
   showStatus = true,
 }) => {
   const isCompact = type === "compact";
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withTiming(0.97, { duration: 100 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 150 });
+  };
 
   return (
-    <View
+    <AnimatedPressable
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       style={[
         {
           width: isCompact ? 260 : "100%",
@@ -63,6 +82,7 @@ const ContestCard: React.FC<ContestCardProps> = ({
           }),
         },
         containerStyle,
+        animatedStyle,
       ]}
     >
       {/* Image Container */}
@@ -199,7 +219,7 @@ const ContestCard: React.FC<ContestCardProps> = ({
           onPress={onPress}
         />
       </View>
-    </View>
+    </AnimatedPressable>
   );
 };
 

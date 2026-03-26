@@ -1,25 +1,29 @@
 import Header from "@/src/components/Header";
 import {
-  AntDesign,
-  Feather,
-  Ionicons,
-  Octicons,
-  SimpleLineIcons,
+    AntDesign,
+    Feather,
+    Ionicons,
+    Octicons,
+    SimpleLineIcons,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
+    Image,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Types
 interface MenuItemProps {
@@ -37,7 +41,7 @@ interface SectionProps {
   children: React.ReactNode;
 }
 
-// Reusable Components
+// Reusable Components with Animation
 const MenuItem: React.FC<MenuItemProps> = ({
   icon,
   title,
@@ -47,11 +51,35 @@ const MenuItem: React.FC<MenuItemProps> = ({
   toggleValue = false,
   onToggleChange,
 }) => {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  const handlePressIn = () => {
+    if (!showToggle) {
+      scale.value = withTiming(0.98, { duration: 80 });
+      opacity.value = withTiming(0.8, { duration: 80 });
+    }
+  };
+
+  const handlePressOut = () => {
+    if (!showToggle) {
+      scale.value = withSpring(1, { damping: 20, stiffness: 200 });
+      opacity.value = withTiming(1, { duration: 150 });
+    }
+  };
+
   return (
-    <TouchableOpacity
-      style={styles.menuItem}
+    <AnimatedPressable
+      style={[styles.menuItem, animatedStyle]}
       onPress={showToggle ? undefined : onPress}
-      activeOpacity={showToggle ? 1 : 0.7}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      android_ripple={{ color: "rgba(0,0,0,0.05)" }}
     >
       <View style={styles.menuItemLeft}>
         {icon}
@@ -72,7 +100,7 @@ const MenuItem: React.FC<MenuItemProps> = ({
       ) : (
         <Ionicons name="chevron-forward" size={20} color="#999" />
       )}
-    </TouchableOpacity>
+    </AnimatedPressable>
   );
 };
 

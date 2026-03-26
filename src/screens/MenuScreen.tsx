@@ -1,45 +1,71 @@
 import Header from "@/src/components/Header";
 import PromotionalBanner from "@/src/components/PromotionalBanner";
+import ReportModal from "@/src/components/ReportModal";
 import {
-  AntDesign,
-  Feather,
-  Ionicons,
-  MaterialCommunityIcons,
-  Octicons,
-  SimpleLineIcons,
+    AntDesign,
+    Feather,
+    Ionicons,
+    MaterialCommunityIcons,
+    Octicons,
+    SimpleLineIcons,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import ReportModal from "@/src/components/ReportModal";
 import {
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// Reusable Components (Matching ProfileScreen patterns)
-const MenuItem = ({ icon, title, onPress, isDestructive = false }: any) => (
-  <TouchableOpacity
-    style={styles.menuItem}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    <View style={styles.menuItemLeft}>
-      {icon}
-      <Text
-        style={[styles.menuItemText, isDestructive && styles.destructiveText]}
-      >
-        {title}
-      </Text>
-    </View>
-    <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
-  </TouchableOpacity>
-);
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// Animated Menu Item Component
+const MenuItem = ({ icon, title, onPress, isDestructive = false }: any) => {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withTiming(0.98, { duration: 80 });
+    opacity.value = withTiming(0.8, { duration: 80 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 20, stiffness: 200 });
+    opacity.value = withTiming(1, { duration: 150 });
+  };
+
+  return (
+    <AnimatedPressable
+      style={[styles.menuItem, animatedStyle]}
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      android_ripple={{ color: "rgba(0,0,0,0.05)" }}
+    >
+      <View style={styles.menuItemLeft}>
+        {icon}
+        <Text
+          style={[styles.menuItemText, isDestructive && styles.destructiveText]}
+        >
+          {title}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+    </AnimatedPressable>
+  );
+};
 
 const Section = ({ title, children }: any) => (
   <View style={styles.section}>
