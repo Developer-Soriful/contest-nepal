@@ -1,4 +1,4 @@
-import ContactUs from "@/src/screens/ContactUs";
+import ContactUs from "../src/screens/ContactUs";
 
 const ContactUsRoute = () => {
     return <ContactUs />;

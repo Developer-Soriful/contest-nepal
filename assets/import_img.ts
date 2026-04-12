@@ -15,6 +15,7 @@ import shadow_top from "./images/shadow_top.png";
 import success_icon from "./images/success_icon.png";
 import tik_icon from "./images/tik_icon.png";
 import top_win from "./images/top_win.png";
+import user_avatar from "./images/user_icon.jpg";
 export const import_img = {
   success_icon,
   shadow_bottom,
@@ -32,5 +33,6 @@ export const import_img = {
   menu_icon,
   gaming_setup_neon,
   game_win,
-  notify_icon
+  notify_icon , 
+  user_avatar
 };

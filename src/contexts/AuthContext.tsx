@@ -1,0 +1,447 @@
+import { router } from 'expo-router';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { Alert } from 'react-native';
+import SafeAsyncStorage from '../lib/SafeAsyncStorage';
+import { authApi, type ApiResponse, type AuthResponse, type RegisterRequest } from '../services/api';
+
+// Storage Keys
+const STORAGE_KEYS = {
+  ACCESS_TOKEN: 'access_token',
+  REFRESH_TOKEN: 'refresh_token',
+  USER_DATA: 'user_data',
+};
+
+// Auth Context Types
+interface AuthContextType {
+  user: AuthResponse['user'] | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  login: (email: string, password: string) => Promise<ApiResponse<AuthResponse>>;
+  register: (data: RegisterRequest) => Promise<ApiResponse<AuthResponse>>;
+  resetPassword: (token: string, newPassword: string) => Promise<ApiResponse<void>>;
+  forgotPassword: (emailOrPhone: string) => Promise<ApiResponse<void>>;
+  verifyEmail: (data: {
+    email?: string;
+    code?: string;
+    verificationToken?: string;
+  }) => Promise<ApiResponse<void>>;
+  resendVerificationEmail: (email: string) => Promise<ApiResponse<void>>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  changePassword: (data: {
+    oldPassword: string;
+    newPassword: string;
+    token?: string;
+  }) => Promise<ApiResponse<void>>;
+  debugStorage: () => Promise<void>;
+}
+
+// Create Context
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Auth Provider Props
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+// Auth Provider Component
+// SafeAsyncStorage is now exported from '../lib/SafeAsyncStorage'
+export function AuthProvider({ children }: AuthProviderProps) {
+  const [user, setUser] = useState<AuthResponse['user'] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Computed property
+  const isAuthenticated = Boolean(user);
+
+  // Initialize auth state on mount
+  useEffect(() => {
+    initializeAuth();
+  }, []);
+
+  const initializeAuth = async () => {
+    try {
+      // Check if session was marked as expired
+      const sessionExpired = await SafeAsyncStorage.getItem('SESSION_EXPIRED');
+      if (sessionExpired === 'true') {
+        console.log('Auth init - Session expired flag found, clearing auth and redirecting to login');
+        await clearAuthData();
+        await SafeAsyncStorage.removeItem('SESSION_EXPIRED');
+        setIsLoading(false);
+        return;
+      }
+
+      // Check for stored user data and tokens
+      const [userData, accessToken, refreshToken] = await Promise.all([
+        SafeAsyncStorage.getItem(STORAGE_KEYS.USER_DATA),
+        SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
+        SafeAsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
+      ]);
+
+      console.log('Auth init - userData exists:', !!userData);
+      console.log('Auth init - accessToken exists:', !!accessToken);
+      console.log('Auth init - refreshToken exists:', !!refreshToken);
+
+      if (userData && accessToken) {
+        // Restore user from storage immediately - this ensures user stays logged in
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+        console.log('Auth init - User restored from storage');
+
+        // Background: try to refresh user data and validate token
+        // But DON'T clear auth if it fails - let the user stay logged in
+        authApi.getCurrentUser().then(response => {
+          if (response.success && response.data) {
+            setUser(response.data);
+            SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data));
+            console.log('Auth init - User data refreshed from API');
+          }
+        }).catch(err => {
+          console.log('Auth init - Background user refresh failed, keeping stored data:', err);
+        });
+      } else if (refreshToken && !accessToken) {
+        // No access token but have refresh token - try to refresh
+        console.log('Auth init - No access token, trying refresh...');
+        const refreshResponse = await authApi.refreshTokens();
+        if (refreshResponse.success && refreshResponse.data) {
+          // Refresh succeeded, now get user
+          const userResponse = await authApi.getCurrentUser();
+          if (userResponse.success && userResponse.data) {
+            setUser(userResponse.data);
+            await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userResponse.data));
+            console.log('Auth init - User restored via token refresh');
+          }
+        } else {
+          // Refresh failed - clear everything
+          console.log('Auth init - Token refresh failed, clearing auth data');
+          await clearAuthData();
+        }
+      } else {
+        console.log('Auth init - No stored auth data found');
+      }
+    } catch (error) {
+      console.error('Auth initialization error:', error);
+      // Don't clear data on error - let user stay logged in with stored data
+    } finally {
+      // Debug: print what's in storage
+      const [userData, accessToken, refreshToken] = await Promise.all([
+        SafeAsyncStorage.getItem(STORAGE_KEYS.USER_DATA),
+        SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
+        SafeAsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
+      ]);
+      console.log('=== APP START STORAGE ===');
+      console.log('userData exists:', !!userData);
+      console.log('accessToken exists:', !!accessToken);
+      console.log('refreshToken exists:', !!refreshToken);
+      console.log('isAuthenticated:', Boolean(userData && accessToken));
+      console.log('========================');
+      setIsLoading(false);
+    }
+  };
+
+  const clearAuthData = async () => {
+    try {
+      await SafeAsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
+      await SafeAsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+      await SafeAsyncStorage.removeItem(STORAGE_KEYS.USER_DATA);
+      setUser(null);
+    } catch (error) {
+      console.error('Error clearing auth data:', error);
+      // Still set user to null even if storage fails
+      setUser(null);
+    }
+  };
+
+  const login = async (email: string, password: string): Promise<ApiResponse<AuthResponse>> => {
+    try {
+      setIsLoading(true);
+      const response = await authApi.login({ email, password });
+
+      if (response.success && response.data) {
+        setUser(response.data.user);
+        // Tokens are already set in authApi.login
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Login error:', error);
+      return {
+        success: false,
+        error: { title: 'Login failed', status: 500 },
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (data: {
+    email: string;
+    password: string;
+    displayName: string;
+    role: 'participant' | 'organizer';
+    phone?: string;
+  }): Promise<ApiResponse<AuthResponse>> => {
+    try {
+      setIsLoading(true);
+      const response = await authApi.register(data);
+
+      if (response.success && response.data) {
+        setUser(response.data.user);
+        // Tokens are already set in authApi.register
+      }
+
+      return response;
+    } catch (error) {
+      console.error('Register error:', error);
+      return {
+        success: false,
+        error: { title: 'Registration failed', status: 500 },
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async (): Promise<void> => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      await clearAuthData();
+      // Navigate to login screen
+      router.replace('/login');
+    }
+  };
+
+  const forgotPassword = async (email: string): Promise<ApiResponse<void>> => {
+    try {
+      return await authApi.forgotPassword({ email });
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      return {
+        success: false,
+        error: { title: 'Failed to send reset email', status: 500 },
+      };
+    }
+  };
+
+  const verifyOtp = async (email: string, code: string): Promise<ApiResponse<void>> => {
+    try {
+      return await authApi.verifyOtp({ email, code });
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      return {
+        success: false,
+        error: { title: 'OTP verification failed', status: 500 },
+      };
+    }
+  };
+
+  const resetPassword = async (token: string, newPassword: string): Promise<ApiResponse<void>> => {
+    try {
+      return await authApi.resetPassword({ verificationToken: token, newPassword });
+    } catch (error) {
+      console.error('Reset password error:', error);
+      return {
+        success: false,
+        error: { title: 'Password reset failed', status: 500 },
+      };
+    }
+  };
+
+  const verifyEmail = async (data: {
+    email?: string;
+    code?: string;
+    verificationToken?: string;
+  }): Promise<ApiResponse<void>> => {
+    try {
+      if (data.email && data.code) {
+        const response = await authApi.verifyEmail({
+          email: data.email,
+          code: data.code
+        });
+        
+        if (response.success) {
+          Alert.alert(
+            "Email Verified", 
+            "Your email has been successfully verified!",
+            [
+              {
+                text: "OK",
+                onPress: () => router.replace("/login")
+              }
+            ]
+          );
+        } else {
+          Alert.alert(
+            "Verification Failed", 
+            response.error?.title || "Invalid verification code"
+          );
+        }
+      } else {
+        Alert.alert("Error", "Email and verification code are required");
+      }
+    } catch (error) {
+      console.error('Email verification error:', error);
+      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+    }
+    return { success: false, error: { title: 'Verification failed', status: 500 } };
+  };
+
+  const changePassword = async (data: {
+    oldPassword?: string;
+    newPassword?: string;
+    token?: string;
+  }): Promise<ApiResponse<void>> => {
+    try {
+      if (data.oldPassword && data.newPassword) {
+        const response = await authApi.changePassword({
+          oldPassword: data.oldPassword,
+          newPassword: data.newPassword,
+        });
+        
+        if (response.success) {
+          Alert.alert(
+            "Password Changed", 
+            "Your password has been successfully changed!",
+            [
+              {
+                text: "OK",
+                onPress: () => router.replace("/login")
+              }
+            ]
+          );
+        } else {
+          Alert.alert(
+            "Password Change Failed", 
+            response.error?.title || "Failed to change password"
+          );
+        }
+      } else {
+        Alert.alert("Error", "Current password and new password are required");
+      }
+    } catch (error) {
+      console.error('Change password error:', error);
+      return {
+        success: false,
+        error: { title: 'Password change failed', status: 500 },
+      };
+    }
+    return { success: false, error: { title: 'Missing fields', status: 400 } };
+  };
+
+  const resendVerificationEmail = async (email: string): Promise<ApiResponse<void>> => {
+    try {
+      if (!email.trim()) {
+        Alert.alert("Error", "Email is required for verification");
+        return {
+          success: false,
+          error: { title: 'Email required', status: 400 },
+        };
+      }
+
+      const response = await authApi.resendVerificationEmail(email.trim());
+      
+      if (response.success) {
+        Alert.alert(
+          "Verification Email Sent", 
+          "A new verification code has been sent to your email!",
+          [
+            {
+              text: "OK",
+              onPress: () => {}
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Failed to Send Verification Email", 
+          response.error?.title || "Failed to send verification email"
+        );
+      }
+    } catch (error) {
+      console.error('Resend verification email error:', error);
+      return {
+        success: false,
+        error: { title: 'Failed to send verification email', status: 500 },
+      };
+    }
+    return { success: false, error: { title: 'Failed to send', status: 500 } };
+  };
+
+  const refreshUser = async (): Promise<void> => {
+    try {
+      const response = await authApi.getCurrentUser();
+      if (response.success && response.data) {
+        setUser(response.data);
+        await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data));
+      }
+    } catch (error) {
+      console.error('Refresh user error:', error);
+    }
+  };
+
+  const debugStorage = async () => {
+    const [userData, accessToken, refreshToken] = await Promise.all([
+      SafeAsyncStorage.getItem(STORAGE_KEYS.USER_DATA),
+      SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
+      SafeAsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
+    ]);
+    console.log('=== STORAGE DEBUG ===');
+    console.log('userData:', userData ? 'EXISTS' : 'NULL');
+    console.log('accessToken:', accessToken ? 'EXISTS' : 'NULL');
+    console.log('refreshToken:', refreshToken ? 'EXISTS' : 'NULL');
+    console.log('====================');
+  };
+
+  const value: AuthContextType = {
+    user,
+    isLoading,
+    isAuthenticated,
+    login,
+    register,
+    forgotPassword,
+    verifyEmail,
+    resendVerificationEmail,
+    logout,
+    refreshUser,
+    changePassword,
+    resetPassword,
+    debugStorage,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// Hook to use auth context
+export function useAuth(): AuthContextType {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
+
+// Higher-order component for protecting routes
+export function withAuth<T extends object>(Component: React.ComponentType<T>) {
+  return function AuthenticatedComponent(props: T) {
+    const { isAuthenticated, isLoading } = useAuth();
+
+    useEffect(() => {
+      if (!isLoading && !isAuthenticated) {
+        router.replace('/login');
+      }
+    }, [isAuthenticated, isLoading]);
+
+    if (isLoading) {
+      // You could return a loading spinner here
+      return null;
+    }
+
+    if (!isAuthenticated) {
+      return null;
+    }
+
+    return <Component {...props} />;
+  };
+}

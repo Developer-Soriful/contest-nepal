@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
-import React, { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     Image,
     KeyboardAvoidingView,
@@ -17,6 +18,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Header from '../components/Header';
 
+// API Integration
+import { import_img } from '@/assets/import_img';
+import { useAuth } from '@/src/contexts/AuthContext';
+import SafeAsyncStorage from '@/src/lib/SafeAsyncStorage';
+import { authApi } from '@/src/services/api';
+
 interface FormData {
     fullName: string;
     email: string;
@@ -28,6 +35,11 @@ interface ProfileData extends FormData {
 }
 
 const EditProfile = () => {
+    const { user, refreshUser } = useAuth();
+    const [isLoading, setIsLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [avatarError, setAvatarError] = useState(false);
+
     const [formData, setFormData] = useState<FormData>({
         fullName: '',
         email: '',
@@ -37,8 +49,31 @@ const EditProfile = () => {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [errors, setErrors] = useState<Partial<FormData>>({});
 
-    // Default avatar - in real app, fetch from API or context
-    const defaultAvatar = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face';
+    // Load user data from AuthContext on mount
+    useEffect(() => {
+        if (user) {
+            setFormData({
+                fullName: user.profile?.displayName || '',
+                email: user.email || '',
+                phone: user.phone || '',
+            });
+        }
+    }, [user]);
+
+    // Reload user data when screen is focused (e.g., after navigating back)
+    useFocusEffect(
+        useCallback(() => {
+            console.log('EditProfile - Screen focused, reloading user data');
+            setAvatarError(false); // Reset avatar error
+            if (user) {
+                setFormData({
+                    fullName: user.profile?.displayName || '',
+                    email: user.email || '',
+                    phone: user.phone || '',
+                });
+            }
+        }, [user])
+    );
 
     const handleInputChange = (field: keyof FormData, value: string) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -55,11 +90,7 @@ const EditProfile = () => {
             newErrors.fullName = 'Full name is required';
         }
 
-        if (!formData.email.trim()) {
-            newErrors.email = 'Email is required';
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            newErrors.email = 'Please enter a valid email';
-        }
+        // Email is read-only from AuthContext, no validation needed
 
         if (!formData.phone.trim()) {
             newErrors.phone = 'Phone number is required';
@@ -71,35 +102,58 @@ const EditProfile = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSave = () => {
-        if (validateForm()) {
-            // Prepare complete profile data for API
-            const profileData: ProfileData = {
-                ...formData,
-                avatarUri: selectedImage,
-            };
+    const handleSave = async () => {
+        if (!validateForm()) return;
 
-            // TODO: API call to save profile
-            // Example API integration:
-            // const formData = new FormData();
-            // formData.append('fullName', profileData.fullName);
-            // formData.append('email', profileData.email);
-            // formData.append('phone', profileData.phone);
-            // if (selectedImage) {
-            //     formData.append('avatar', {
-            //         uri: selectedImage,
-            //         type: 'image/jpeg',
-            //         name: 'avatar.jpg',
-            //     });
-            // }
-            // await api.uploadProfile(formData);
+        setIsSaving(true);
+        try {
+            let avatarUrl: string | undefined;
+            
+            // Upload avatar if changed
+            if (selectedImage) {
+                const avatarResponse = await authApi.uploadAvatar(selectedImage);
+                if (!avatarResponse.success) {
+                    Alert.alert('Error', avatarResponse.error?.title || 'Failed to upload avatar');
+                    setIsSaving(false);
+                    return;
+                }
+                // Capture the avatarUrl from upload response
+                avatarUrl = avatarResponse.data?.avatarUrl;
+            }
 
-            console.log('Saving profile:', profileData);
-            Alert.alert(
-                'Success',
-                'Profile updated successfully!',
-                [{ text: 'OK', onPress: () => router.back() }]
-            );
+            // Update profile (with avatarUrl if uploaded)
+            const profileResponse = await authApi.updateProfile({
+                displayName: formData.fullName,
+                phone: formData.phone,
+                avatarUrl, 
+            });
+
+            if (profileResponse.success && profileResponse.data) {
+                // Clear selected image after successful upload
+                setSelectedImage(null);
+                
+                // Update stored user data FIRST
+                await SafeAsyncStorage.setItem('user_data', JSON.stringify(profileResponse.data));
+                
+                // Force refresh user context BEFORE navigation
+                await refreshUser();
+                
+                // Small delay to ensure state propagates
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                Alert.alert(
+                    'Success',
+                    'Profile updated successfully!',
+                    [{ text: 'OK', onPress: () => router.back() }]
+                );
+            } else {
+                Alert.alert('Error', profileResponse.error?.title || 'Failed to update profile');
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+            Alert.alert('Error', 'An unexpected error occurred');
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -111,9 +165,18 @@ const EditProfile = () => {
             return;
         }
 
+        // Load user data from AuthContext
+        if (user) {
+            setFormData({
+                fullName: user.profile?.displayName || '',
+                email: user.email || '',
+                phone: user.phone || '',
+            });
+        }
+
         // Open image picker
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'], 
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.8,
@@ -142,10 +205,21 @@ const EditProfile = () => {
                     {/* Avatar Section */}
                     <View style={styles.avatarSection}>
                         <View style={styles.avatarContainer}>
-                            <Image
-                                source={{ uri: selectedImage || defaultAvatar }}
-                                style={styles.avatar}
-                            />
+                            {(selectedImage || user?.profile?.avatarUrl) && !avatarError ? (
+                                <Image
+                                    key={selectedImage || user?.profile?.avatarUrl} // Force re-render when avatar changes
+                                    source={{
+                                        uri: selectedImage || user?.profile?.avatarUrl?.replace('localhost', '10.10.11.91')
+                                    }}
+                                    style={styles.avatar}
+                                    onError={() => setAvatarError(true)}
+                                />
+                            ) : (
+                                <Image
+                                    source={import_img.user_avatar}
+                                    style={styles.avatar}
+                                />
+                            )}
                             <TouchableOpacity
                                 style={styles.cameraButton}
                                 onPress={handleAvatarPress}
@@ -174,22 +248,18 @@ const EditProfile = () => {
                             )}
                         </View>
 
-                        {/* Email Address */}
+                        {/* Email Address - Read Only */}
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>E-mail address</Text>
                             <TextInput
-                                style={[styles.input, errors.email && styles.inputError]}
-                                placeholder="Enter your e-mail address"
-                                placeholderTextColor="#999"
+                                style={[styles.input, styles.readOnlyInput]}
                                 value={formData.email}
-                                onChangeText={(text) => handleInputChange('email', text)}
+                                editable={false}
+                                selectTextOnFocus={false}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
-                                autoCorrect={false}
                             />
-                            {errors.email && (
-                                <Text style={styles.errorText}>{errors.email}</Text>
-                            )}
+                            <Text style={styles.helperText}>Email cannot be changed</Text>
                         </View>
 
                         {/* Phone Number */}
@@ -211,11 +281,16 @@ const EditProfile = () => {
 
                     {/* Save Button */}
                     <TouchableOpacity
-                        style={styles.saveButton}
+                        style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
                         onPress={handleSave}
                         activeOpacity={0.8}
+                        disabled={isSaving}
                     >
-                        <Text style={styles.saveButtonText}>Save Changes</Text>
+                        {isSaving ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                            <Text style={styles.saveButtonText}>Save Changes</Text>
+                        )}
                     </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
@@ -232,14 +307,12 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        flexGrow: 1,
         paddingHorizontal: 20,
         paddingBottom: 40,
     },
     avatarSection: {
         alignItems: 'center',
-        marginTop: 20,
-        marginBottom: 30,
+        marginVertical: 30,
     },
     avatarContainer: {
         position: 'relative',
@@ -248,6 +321,7 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
+        backgroundColor: '#E5E7EB',
     },
     cameraButton: {
         position: 'absolute',
@@ -257,32 +331,45 @@ const styles = StyleSheet.create({
         height: 32,
         borderRadius: 16,
         backgroundColor: '#990009',
-        alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 3,
+        alignItems: 'center',
+        borderWidth: 2,
         borderColor: '#FFF',
     },
     formContainer: {
-        gap: 16,
+        backgroundColor: '#FFF',
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 20,
     },
     inputGroup: {
-        marginBottom: 4,
+        marginBottom: 20,
     },
     label: {
         fontSize: 14,
-        fontWeight: '500',
+        fontWeight: '600',
         color: '#333',
         marginBottom: 8,
     },
     input: {
-        backgroundColor: '#FFF',
-        borderRadius: 25,
+        height: 48,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderRadius: 12,
         paddingHorizontal: 16,
-        paddingVertical: 14,
         fontSize: 14,
         color: '#333',
-        borderWidth: 1,
-        borderColor: '#BFBBFF',
+        backgroundColor: '#FFF',
+    },
+    readOnlyInput: {
+        backgroundColor: '#F0F0F0',
+        color: '#666',
+    },
+    helperText: {
+        fontSize: 12,
+        color: '#666',
+        marginTop: 4,
+        marginLeft: 4,
     },
     inputError: {
         borderColor: '#FF4444',
@@ -295,17 +382,19 @@ const styles = StyleSheet.create({
     },
     saveButton: {
         backgroundColor: '#990009',
-        borderRadius: 25,
-        paddingVertical: 16,
+        height: 48,
+        borderRadius: 12,
+        justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 30,
-        borderWidth: 1,
-        borderColor: '#990009',
+        marginTop: 10,
+    },
+    saveButtonDisabled: {
+        opacity: 0.7,
     },
     saveButtonText: {
         color: '#FFF',
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: '700',
     },
 });
 

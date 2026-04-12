@@ -1,9 +1,8 @@
-import { import_img } from "@/assets/import_img";
-import CustomGradientButton from "@/src/components/CustomGradientButton";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -15,14 +14,52 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { import_img } from '../../assets/import_img';
+import CustomGradientButton from '../../src/components/CustomGradientButton';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const handleLogin = () => {
-    router.navigate("/(tabs)" as any);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { login, isLoading: authLoading } = useAuth();
+
+  const handleLogin = async () => {
+    // Basic validation
+    if (!email.trim()) {
+      Alert.alert("Error", "Please enter your email or phone number");
+      return;
+    }
+    
+    if (!password.trim()) {
+      Alert.alert("Error", "Please enter your password");
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const response = await login(email.trim(), password);
+      
+      if (response.success) {
+        // Login successful, navigate to tabs
+        router.replace("/(tabs)" as any);
+      } else {
+        // Show error message
+        Alert.alert(
+          "Login Failed", 
+          response.error?.title || "An error occurred during login"
+        );
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -182,7 +219,11 @@ export default function Login() {
             </View>
 
             {/* Login Button */}
-            <CustomGradientButton title="Login" onPress={() => handleLogin()} />
+            <CustomGradientButton 
+              title={isLoading || authLoading ? "Logging in..." : "Login"} 
+              onPress={handleLogin}
+              disabled={isLoading || authLoading}
+            />
             {/* Or Continue With */}
             <View
               style={{

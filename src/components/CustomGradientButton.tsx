@@ -1,11 +1,11 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
-    Pressable,
-    StyleSheet,
-    Text,
-    TextStyle,
-    ViewStyle
+  Pressable,
+  StyleSheet,
+  Text,
+  TextStyle,
+  ViewStyle
 } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 
@@ -23,6 +23,8 @@ interface Props {
   style?: ViewStyle;
   borderRadius?: number;
   backgroundColor?: string;
+  disabled?: boolean;
+  isLoading?: boolean;
 }
 
 const CustomGradientButton = ({
@@ -37,6 +39,8 @@ const CustomGradientButton = ({
   style,
   borderRadius = 50,
   backgroundColor,
+  disabled = false,
+  isLoading = false,
 }: Props) => {
   const gradientColors = backgroundColor
     ? ([backgroundColor, backgroundColor] as const)
@@ -49,10 +53,12 @@ const CustomGradientButton = ({
   }));
 
   const handlePressIn = () => {
+    if (disabled) return;
     scale.value = withTiming(0.96, { duration: 80 });
   };
 
   const handlePressOut = () => {
+    if (disabled) return;
     scale.value = withSpring(1, { damping: 15, stiffness: 200 });
   };
 
@@ -66,10 +72,11 @@ const CustomGradientButton = ({
       ]}
     >
       <AnimatedPressable
-        onPress={onPress}
+        onPress={disabled || isLoading ? undefined : onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        style={[styles.touchable, { borderRadius }, style]}
+        style={[styles.touchable, { borderRadius }, style, { opacity: disabled || isLoading ? 0.5 : 1 }]}
+        disabled={disabled || isLoading}
       >
         <LinearGradient
           colors={gradientColors}
@@ -81,7 +88,9 @@ const CustomGradientButton = ({
             { borderColor: innerBorderColor, borderRadius },
           ]}
         >
-          <Text style={[styles.text, textStyle]}>{title}</Text>
+          <Text style={[styles.text, textStyle]}>
+            {isLoading ? "Loading..." : title}
+          </Text>
         </LinearGradient>
       </AnimatedPressable>
     </Animated.View>

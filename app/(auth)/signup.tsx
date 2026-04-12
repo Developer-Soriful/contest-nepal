@@ -1,9 +1,9 @@
 import { import_img } from "@/assets/import_img";
-import CustomGradientButton from "@/src/components/CustomGradientButton";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -12,9 +12,11 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import CustomGradientButton from '../../src/components/CustomGradientButton';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -22,6 +24,66 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { register, isLoading: authLoading } = useAuth();
+
+  const handleSignup = async () => {
+    // Basic validation
+    if (!name.trim()) {
+      Alert.alert("Error", "Please enter your full name");
+      return;
+    }
+    
+    if (!email.trim()) {
+      Alert.alert("Error", "Please enter your email address");
+      return;
+    }
+    
+    if (password.length < 8) {
+      Alert.alert("Error", "Password must be at least 8 characters long");
+      return;
+    }
+    
+    if (!acceptTerms) {
+      Alert.alert("Error", "Please accept the terms and conditions");
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const response = await register({
+        email: email.trim(),
+        password,
+        displayName: name.trim(),
+        role: 'participant', 
+      });
+      
+      if (response.success) {
+        Alert.alert(
+          "Registration Successful", 
+          "Please check your email for verification instructions.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.replace("/verify-email")
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Registration Failed", 
+          response.error?.title || "An error occurred during registration"
+        );
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -144,8 +206,9 @@ export default function Signup() {
             {/* Sign Up Button */}
             <View style={{ marginBottom: 25 }}>
               <CustomGradientButton
-                title="Sign Up"
-                onPress={() => router.navigate("/(tabs)")}
+                title={isLoading || authLoading ? "Creating Account..." : "Sign Up"}
+                onPress={handleSignup}
+                disabled={isLoading || authLoading}
               />
             </View>
 

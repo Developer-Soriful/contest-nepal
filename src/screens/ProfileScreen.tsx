@@ -1,24 +1,31 @@
+import { import_img } from "@/assets/import_img";
 import Header from "@/src/components/Header";
+import { useAuth } from "@/src/contexts/AuthContext";
+import SafeAsyncStorage from "@/src/lib/SafeAsyncStorage";
+import { authApi } from "@/src/services/api";
 import {
-    AntDesign,
-    Feather,
-    Ionicons,
-    Octicons,
-    SimpleLineIcons,
+  AntDesign,
+  Feather,
+  Ionicons,
+  Octicons,
+  SimpleLineIcons,
 } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
-    Image,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -117,13 +124,31 @@ const Section: React.FC<SectionProps> = ({ title, children }) => {
 const ProfileScreen = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
+  // Get real user data from AuthContext
+  const { user, logout, isLoading, refreshUser } = useAuth();
+
+  // Build user display data from API response
+  // Fix: Replace localhost with actual IP since backend returns localhost URLs
+  const rawAvatarUrl = user?.profile?.avatarUrl;
+  const avatarUrl = rawAvatarUrl?.replace('localhost', '10.10.11.91') || null;
+  
   const userData = {
-    name: "Seam Rahman",
-    phone: "+88017749845665",
-    avatar:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
+    name: user?.profile?.displayName || user?.email?.split('@')[0] || "User",
+    phone: user?.phone || "No phone number",
+    email: user?.email || "",
+    avatar: avatarUrl,
+    role: user?.role || "participant",
+    status: user?.status || "active",
+    emailVerified: user?.emailVerified || false,
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      setAvatarError(false);
+    }, [])
+  );
 
   // Navigation Handlers
   const handleBack = () => {
@@ -135,7 +160,7 @@ const ProfileScreen = () => {
   };
 
   const handleChangePassword = () => {
-    router.push("/(auth)/change-password");
+    router.push("/change-password");
   };
 
   const handleActivities = () => {
@@ -158,8 +183,9 @@ const ProfileScreen = () => {
     router.push("/help-support");
   };
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
     setShowLogoutModal(false);
+    await logout();
     router.replace("/(auth)/login");
   };
 
@@ -171,8 +197,57 @@ const ProfileScreen = () => {
     console.log("Delete Account clicked");
   };
 
-  const handleAvatarPress = () => {
-    console.log("Avatar/Camera clicked");
+  const handleAvatarPress = async () => {
+    console.log("ProfileScreen - Avatar pressed, opening image picker");
+    
+    // Request permission
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow access to your photo library to change your avatar.');
+      return;
+    }
+
+    // Open image picker
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const selectedImage = result.assets[0].uri;
+      console.log('ProfileScreen - Image selected:', selectedImage);
+      
+      // Show loading state
+      setAvatarError(false);
+      
+      // Upload avatar
+      console.log('ProfileScreen - Uploading avatar...');
+      const avatarResponse = await authApi.uploadAvatar(selectedImage);
+      
+      if (!avatarResponse.success) {
+        Alert.alert('Error', avatarResponse.error?.title || 'Failed to upload avatar');
+        return;
+      }
+      
+      const avatarUrl = avatarResponse.data?.avatarUrl;
+      console.log('ProfileScreen - Avatar uploaded, URL:', avatarUrl);
+      
+      // Update profile with new avatar
+      const profileResponse = await authApi.updateProfile({
+        avatarUrl,
+      });
+      
+      if (profileResponse.success && profileResponse.data) {
+        // Update stored user data
+        await SafeAsyncStorage.setItem('user_data', JSON.stringify(profileResponse.data));
+        await refreshUser();
+        Alert.alert('Success', 'Profile picture updated successfully!');
+      } else {
+        Alert.alert('Error', profileResponse.error?.title || 'Failed to update profile');
+      }
+    }
   };
 
   return (
@@ -185,24 +260,63 @@ const ProfileScreen = () => {
         style={{ paddingTop: 20 }}
       >
         {/* User Info Card */}
-        <View style={styles.userCard}>
-          <View style={styles.avatarContainer}>
-            <Image source={{ uri: userData.avatar }} style={styles.avatar} />
-            <TouchableOpacity
-              style={styles.cameraButton}
-              onPress={handleAvatarPress}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="camera" size={12} color="#FFF" />
-            </TouchableOpacity>
+        {isLoading ? (
+          <View style={[styles.userCard, styles.loadingCard]}>
+            <ActivityIndicator size="large" color="#990009" />
           </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>
-              Name: <Text style={styles.userNameValue}>{userData.name}</Text>
-            </Text>
-            <Text style={styles.userPhone}>{userData.phone}</Text>
+        ) : (
+          <View style={styles.userCard}>
+            <View style={styles.avatarContainer}>
+              {userData.avatar && !avatarError ? (
+                <Image
+                  key={userData.avatar} // Force re-render when avatar URL changes
+                  source={{ uri: userData.avatar }}
+                  style={styles.avatar}
+                  onError={() => {
+                    console.log('Profile - Failed to load remote avatar, showing fallback');
+                    setAvatarError(true);
+                  }}
+                />
+              ) : (
+                <Image
+                  source={import_img.user_avatar}
+                  style={styles.avatar}
+                />
+              )}
+              <TouchableOpacity
+                style={styles.cameraButton}
+                onPress={handleAvatarPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="camera" size={12} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.userName}>
+                Name: <Text style={styles.userNameValue}>{userData.name}</Text>
+              </Text>
+              <Text style={styles.userPhone}>{userData.phone}</Text>
+              {userData.email && (
+                <Text style={styles.userEmail} numberOfLines={1}>
+                  {userData.email}
+                </Text>
+              )}
+              <View style={styles.badgeContainer}>
+                <View style={[styles.roleBadge, userData.role === 'organizer' && styles.organizerBadge]}>
+                  <Text style={styles.roleBadgeText}>
+                    {userData.role === 'organizer' ? '👑 Organizer' : '👤 Participant'}
+                  </Text>
+                </View>
+                {userData.emailVerified && (
+                  <View style={styles.verifiedBadge}>
+                    <Ionicons name="checkmark-circle" size={12} color="#22C55E" />
+                    <Text style={styles.verifiedBadgeText}>Verified</Text>
+                  </View>
+                )}
+              </View>
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Account Information Section */}
         <Section title="Account Information">
@@ -259,7 +373,7 @@ const ProfileScreen = () => {
               <Ionicons name="notifications-outline" size={18} color="#666" />
             }
             title="Notification"
-            onPress={() => {}}
+            onPress={() => { }}
             showToggle
             toggleValue={notificationsEnabled}
             onToggleChange={setNotificationsEnabled}
@@ -359,6 +473,7 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 12,
+    backgroundColor: '#E5E7EB', // Gray background while loading or on error
   },
   cameraButton: {
     position: "absolute",
@@ -497,6 +612,52 @@ const styles = StyleSheet.create({
     color: "#667085",
     fontWeight: "700",
     fontSize: 15,
+  },
+  // Loading state
+  loadingCard: {
+    justifyContent: "center",
+    alignItems: "center",
+    height: 120,
+  },
+  // User info enhancements
+  userEmail: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 2,
+  },
+  // Badge styles
+  badgeContainer: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 8,
+  },
+  roleBadge: {
+    backgroundColor: "#E0E7FF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  organizerBadge: {
+    backgroundColor: "#FEF3C7",
+  },
+  roleBadgeText: {
+    fontSize: 11,
+    color: "#4338CA",
+    fontWeight: "600",
+  },
+  verifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  verifiedBadgeText: {
+    fontSize: 11,
+    color: "#16A34A",
+    fontWeight: "600",
   },
 });
 

@@ -1,3 +1,4 @@
+import { AuthProvider } from "@/src/contexts/AuthContext";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
@@ -65,20 +66,22 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <View style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-        </Stack>
-        <View pointerEvents="none" style={styles.globalTopShadow}>
-          <Image
-            source={require("../assets/images/global_shadow.png")}
-            style={{ width: "100%", height: "100%" }}
-            resizeMode="stretch"
-          />
+    <AuthProvider>
+      <SafeAreaProvider>
+        <View style={{ flex: 1 }}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+          </Stack>
+          <View pointerEvents="none" style={styles.globalTopShadow}>
+            <Image
+              source={require("../assets/images/global_shadow.png")}
+              style={{ width: "100%", height: "100%" }}
+              resizeMode="stretch"
+            />
+          </View>
         </View>
-      </View>
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </AuthProvider>
   );
 }
 

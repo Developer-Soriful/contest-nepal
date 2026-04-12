@@ -1,11 +1,11 @@
-import ContestCard from "@/src/components/ContestCard";
-import HomeHeader from "@/src/components/HomeHeader";
-import PromotionalBanner from "@/src/components/PromotionalBanner";
-import SectionHeader from "@/src/components/SectionHeader";
 import { router } from "expo-router";
 import React from "react";
 import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import ContestCard from '../../src/components/ContestCard';
+import HomeHeader from '../../src/components/HomeHeader';
+import PromotionalBanner from '../../src/components/PromotionalBanner';
+import SectionHeader from '../../src/components/SectionHeader';
 
 const HomePage = () => {
   return (

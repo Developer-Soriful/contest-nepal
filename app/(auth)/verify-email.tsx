@@ -1,13 +1,64 @@
-import CustomGradientButton from '@/src/components/CustomGradientButton';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
 import React, { useRef, useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import CustomGradientButton from '../../src/components/CustomGradientButton';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function VerifyEmail() {
     const [code, setCode] = useState(['', '', '', '', '', '']);
+    const [email, setEmail] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const inputs = useRef<(TextInput | null)[]>([]);
+    
+    const { verifyEmail, resendVerificationEmail } = useAuth();
+
+    const handleVerify = async () => {
+        const fullCode = code.join('');
+        
+        if (fullCode.length !== 6) {
+            Alert.alert("Error", "Please enter the complete 6-digit verification code");
+            return;
+        }
+        
+        if (!email.trim()) {
+            Alert.alert("Error", "Email is required for verification");
+            return;
+        }
+
+        setIsLoading(true);
+        
+        try {
+            const response = await verifyEmail({
+                email: email.trim(),
+                code: fullCode
+            });
+            
+            if (response.success) {
+                Alert.alert(
+                    "Email Verified", 
+                    "Your email has been successfully verified!",
+                    [
+                        {
+                            text: "OK",
+                            onPress: () => router.replace("/login")
+                        }
+                    ]
+                );
+            } else {
+                Alert.alert(
+                    "Verification Failed", 
+                    response.error?.title || "Invalid verification code"
+                );
+            }
+        } catch (error) {
+            console.error("Email verification error:", error);
+            Alert.alert("Error", "An unexpected error occurred. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     const handleInput = (text: string, index: number) => {
         const newCode = [...code];
@@ -82,8 +133,9 @@ export default function VerifyEmail() {
                     {/* Verify Button */}
                     <View style={styles.buttonContainer}>
                         <CustomGradientButton
-                            title="Verify"
-                            onPress={() => router.navigate("/change-password")}
+                            title={isLoading ? "Verifying..." : "Verify"}
+                            onPress={handleVerify}
+                            disabled={isLoading}
                         />
                     </View>
 
@@ -91,7 +143,7 @@ export default function VerifyEmail() {
                     <View style={styles.footer}>
                         <View style={styles.footerRow}>
                             <Text style={styles.footerText}>Didn't receive the code? </Text>
-                            <TouchableOpacity onPress={() => console.log("Resend code")}>
+                            <TouchableOpacity onPress={() => resendVerificationEmail(email)}>
                                 <Text style={styles.resendLink}>Resend</Text>
                             </TouchableOpacity>
                         </View>

@@ -1,5 +1,5 @@
-import CalendarScreen from "@/src/screens/CalendarScreen";
 import React from "react";
+import CalendarScreen from '../../src/screens/CalendarScreen';
 
 const CalendarPage = () => {
   return <CalendarScreen />;

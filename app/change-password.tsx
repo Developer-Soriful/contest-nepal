@@ -5,7 +5,6 @@ import {
     Alert,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -13,8 +12,9 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import CustomGradientButton from '../../src/components/CustomGradientButton';
-import { useAuth } from '../../src/contexts/AuthContext';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import CustomGradientButton from '../src/components/CustomGradientButton';
+import { useAuth } from '../src/contexts/AuthContext';
 
 export default function ChangePassword() {
     const [currentPassword, setCurrentPassword] = useState("");
@@ -38,13 +38,23 @@ export default function ChangePassword() {
             return;
         }
 
+        // Password strength validation
+        if (newPassword.length < 8) {
+            Alert.alert("Error", "New password must be at least 8 characters long");
+            return;
+        }
+
         setIsLoading(true);
+        console.log('ChangePassword - Calling API with current password and new password');
         
         try {
+            // Backend expects: oldPassword (not currentPassword)
             const response = await changePassword({
-                currentPassword,
-                newPassword
+                oldPassword: currentPassword,
+                newPassword: newPassword
             });
+            
+            console.log('ChangePassword - API Response:', response);
             
             if (response.success) {
                 Alert.alert(
@@ -53,18 +63,22 @@ export default function ChangePassword() {
                     [
                         {
                             text: "OK",
-                            onPress: () => router.replace("/login")
+                            onPress: () => {
+                                console.log('ChangePassword - Success, navigating back');
+                                router.back();
+                            }
                         }
                     ]
                 );
             } else {
+                console.log('ChangePassword - Failed:', response.error);
                 Alert.alert(
                     "Password Change Failed", 
-                    response.error?.title || "Failed to change password"
+                    response.error?.title || "Failed to change password. Please check your current password."
                 );
             }
         } catch (error) {
-            console.error('Change password error:', error);
+            console.error('ChangePassword - Error:', error);
             Alert.alert("Error", "An unexpected error occurred. Please try again.");
         } finally {
             setIsLoading(false);

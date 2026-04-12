@@ -1,8 +1,8 @@
-import CustomGradientButton from "@/src/components/CustomGradientButton";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -10,12 +10,53 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import CustomGradientButton from '../../src/components/CustomGradientButton';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function ForgotPassword() {
   const [emailOrPhone, setEmailOrPhone] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const { forgotPassword } = useAuth();
+
+  const handleForgotPassword = async () => {
+    if (!emailOrPhone.trim()) {
+      Alert.alert("Error", "Please enter your email or phone number");
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const response = await forgotPassword(emailOrPhone.trim());
+      
+      if (response.success) {
+        Alert.alert(
+          "Reset Email Sent", 
+          "Please check your email for password reset instructions.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.back()
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Failed to Send Reset Email", 
+          response.error?.title || "An error occurred while sending reset email"
+        );
+      }
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      Alert.alert("Error", "An unexpected error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -67,8 +108,9 @@ export default function ForgotPassword() {
           {/* Button Section */}
           <View style={styles.buttonContainer}>
             <CustomGradientButton
-              title="Send Reset Code"
-              onPress={() => router.navigate("/(auth)/verify-email")}
+              title={isLoading ? "Sending..." : "Send Reset Code"}
+              onPress={handleForgotPassword}
+              disabled={isLoading}
             />
           </View>
 

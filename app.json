@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Contest Hub",
-    "slug": "Contest Hub",
+    "name": "Contest Nepal",
+    "slug": "Contest Nepal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "contesthub",
+    "scheme": "contestnepal",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

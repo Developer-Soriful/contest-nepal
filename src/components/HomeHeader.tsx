@@ -1,18 +1,27 @@
+import { import_img } from "@/assets/import_img";
+import { useAuth } from "@/src/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React from "react";
-import { Image, Platform, Text, TouchableOpacity, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, Image, Platform, Text, TouchableOpacity, View } from "react-native";
 
-interface HomeHeaderProps {
-  userName?: string;
-  avatarUri?: string;
-  onNotificationPress?: () => void;
-}
+const HomeHeader: React.FC = () => {
+  const [avatarError, setAvatarError] = useState(false);
+  const { user, isLoading } = useAuth();
 
-const HomeHeader: React.FC<HomeHeaderProps> = ({
-  userName = "Alexa Donnal",
-  avatarUri = "https://i.pravatar.cc/150?u=alexa",
-}) => {
+  // Get real user data from AuthContext
+  const userName = user?.profile?.displayName || user?.email?.split('@')[0] || "User";
+  // Fix: Replace localhost with actual IP since backend returns localhost URLs
+  const rawAvatarUrl = user?.profile?.avatarUrl;
+  const avatarUri = rawAvatarUrl?.replace('localhost', '10.10.11.91') || null;
+
+  // Reset avatarError when component is focused
+  useFocusEffect(
+    useCallback(() => {
+      console.log('HomeHeader - Focused, resetting avatarError');
+      setAvatarError(false);
+    }, [])
+  );
   return (
     <View
       style={{
@@ -28,16 +37,51 @@ const HomeHeader: React.FC<HomeHeaderProps> = ({
       <View style={{ flexDirection: "row", alignItems: "center" }}>
         {/* User Avatar */}
         <TouchableOpacity onPress={() => router.navigate("/profile")}>
-          <Image
-            source={{ uri: avatarUri }}
-            style={{
-              width: 51,
-              height: 51,
-              borderRadius: 27,
-              borderWidth: 1,
-              borderColor: "#fff",
-            }}
-          />
+          {isLoading ? (
+            <View
+              style={{
+                width: 51,
+                height: 51,
+                borderRadius: 27,
+                backgroundColor: "#E5E7EB",
+                justifyContent: "center",
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: "#fff",
+              }}
+            >
+              <ActivityIndicator size="small" color="#990009" />
+            </View>
+          ) : avatarUri && !avatarError ? (
+            <Image
+              key={avatarUri} // Force re-render when avatar URL changes
+              source={{ uri: avatarUri }}
+              style={{
+                width: 51,
+                height: 51,
+                borderRadius: 27,
+                borderWidth: 1,
+                borderColor: "#fff",
+                backgroundColor: "#E5E7EB",
+              }}
+              onError={() => {
+                console.log('HomeHeader - Failed to load avatar, showing fallback');
+                setAvatarError(true);
+              }}
+            />
+          ) : (
+            <Image
+              source={import_img.user_avatar}
+              style={{
+                width: 51,
+                height: 51,
+                borderRadius: 27,
+                borderWidth: 1,
+                borderColor: "#fff",
+                backgroundColor: "#E5E7EB",
+              }}
+            />
+          )}
         </TouchableOpacity>
 
         {/* Welcome Text */}
@@ -59,8 +103,9 @@ const HomeHeader: React.FC<HomeHeaderProps> = ({
               marginTop: 2,
               fontWeight: "500",
             }}
+            numberOfLines={1}
           >
-            {userName}
+            {isLoading ? "Loading..." : userName}
           </Text>
         </View>
       </View>
