@@ -4,6 +4,13 @@ import { Alert } from 'react-native';
 import SafeAsyncStorage from '../lib/SafeAsyncStorage';
 import { authApi, type ApiResponse, type AuthResponse, type RegisterRequest } from '../services/api';
 
+// Event names for cross-screen communication
+export const AUTH_EVENTS = {
+  USER_UPDATED: 'auth:user_updated',
+  PROFILE_CHANGED: 'auth:profile_changed',
+  AVATAR_UPDATED: 'auth:avatar_updated',
+} as const;
+
 // Storage Keys
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'access_token',
@@ -119,7 +126,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log('Auth init - No stored auth data found');
       }
     } catch (error) {
-      console.error('Auth initialization error:', error);
+      console.log('Auth initialization error:', error);
       // Don't clear data on error - let user stay logged in with stored data
     } finally {
       // Debug: print what's in storage
@@ -145,7 +152,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await SafeAsyncStorage.removeItem(STORAGE_KEYS.USER_DATA);
       setUser(null);
     } catch (error) {
-      console.error('Error clearing auth data:', error);
+      console.log('Error clearing auth data:', error);
       // Still set user to null even if storage fails
       setUser(null);
     }
@@ -163,7 +170,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       return response;
     } catch (error) {
-      console.error('Login error:', error);
+      console.log('Login error:', error);
       return {
         success: false,
         error: { title: 'Login failed', status: 500 },
@@ -191,7 +198,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       return response;
     } catch (error) {
-      console.error('Register error:', error);
+      console.log('Register error:', error);
       return {
         success: false,
         error: { title: 'Registration failed', status: 500 },
@@ -205,7 +212,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await authApi.logout();
     } catch (error) {
-      console.error('Logout error:', error);
+      console.log('Logout error:', error);
     } finally {
       await clearAuthData();
       // Navigate to login screen
@@ -217,7 +224,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       return await authApi.forgotPassword({ email });
     } catch (error) {
-      console.error('Forgot password error:', error);
+      console.log('Forgot password error:', error);
       return {
         success: false,
         error: { title: 'Failed to send reset email', status: 500 },
@@ -229,7 +236,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       return await authApi.verifyOtp({ email, code });
     } catch (error) {
-      console.error('OTP verification error:', error);
+      console.log('OTP verification error:', error);
       return {
         success: false,
         error: { title: 'OTP verification failed', status: 500 },
@@ -241,7 +248,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       return await authApi.resetPassword({ verificationToken: token, newPassword });
     } catch (error) {
-      console.error('Reset password error:', error);
+      console.log('Reset password error:', error);
       return {
         success: false,
         error: { title: 'Password reset failed', status: 500 },
@@ -282,7 +289,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         Alert.alert("Error", "Email and verification code are required");
       }
     } catch (error) {
-      console.error('Email verification error:', error);
+      console.log('Email verification error:', error);
       Alert.alert("Error", "An unexpected error occurred. Please try again.");
     }
     return { success: false, error: { title: 'Verification failed', status: 500 } };
@@ -321,7 +328,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         Alert.alert("Error", "Current password and new password are required");
       }
     } catch (error) {
-      console.error('Change password error:', error);
+      console.log('Change password error:', error);
       return {
         success: false,
         error: { title: 'Password change failed', status: 500 },
@@ -360,7 +367,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         );
       }
     } catch (error) {
-      console.error('Resend verification email error:', error);
+      console.log('Resend verification email error:', error);
       return {
         success: false,
         error: { title: 'Failed to send verification email', status: 500 },
@@ -371,13 +378,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const refreshUser = async (): Promise<void> => {
     try {
+      console.log('[AuthContext] refreshUser called - fetching from API...');
       const response = await authApi.getCurrentUser();
+      console.log('[AuthContext] API response success:', response.success);
+      console.log('[AuthContext] API response data:', response.data);
+      
       if (response.success && response.data) {
+        console.log('[AuthContext] Setting user state with:', response.data.profile?.displayName);
         setUser(response.data);
         await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data));
+        console.log('[AuthContext] User state updated and saved to storage');
+      } else {
+        console.log('[AuthContext] API response failed or no data:', response.error);
       }
     } catch (error) {
-      console.error('Refresh user error:', error);
+      console.log('[AuthContext] Refresh user error:', error);
     }
   };
 

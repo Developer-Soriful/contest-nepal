@@ -1,6 +1,6 @@
 import { import_img } from "@/assets/import_img";
 import Header from "@/src/components/Header";
-import { useAuth } from "@/src/contexts/AuthContext";
+import { AUTH_EVENTS, useAuth } from "@/src/contexts/AuthContext";
 import SafeAsyncStorage from "@/src/lib/SafeAsyncStorage";
 import { authApi } from "@/src/services/api";
 import {
@@ -13,19 +13,21 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  DeviceEventEmitter,
   Image,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -125,6 +127,8 @@ const ProfileScreen = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(Date.now()); // Force re-render
 
   // Get real user data from AuthContext
   const { user, logout, isLoading, refreshUser } = useAuth();
@@ -144,9 +148,27 @@ const ProfileScreen = () => {
     emailVerified: user?.emailVerified || false,
   };
 
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(AUTH_EVENTS.USER_UPDATED, (updatedUser) => {
+      console.log('[ProfileScreen] Received USER_UPDATED event');
+      setAvatarError(false);
+      // Force re-render
+      setLastUpdate(Date.now());
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       setAvatarError(false);
+      // Refresh user data when screen comes into focus
+      console.log('[ProfileScreen] Screen focused - refreshing user data');
+      refreshUser().then(() => {
+        console.log('[ProfileScreen] User data refreshed on focus, name:', user?.profile?.displayName);
+      });
     }, [])
   );
 
@@ -250,6 +272,22 @@ const ProfileScreen = () => {
     }
   };
 
+  // Pull-to-refresh handler
+  const onRefresh = useCallback(async () => {
+    console.log('[ProfileScreen] Pull to refresh triggered');
+    setRefreshing(true);
+    try {
+      console.log('[ProfileScreen] Before refresh - name:', user?.profile?.displayName);
+      await refreshUser();
+      // Force re-render by updating timestamp
+      setLastUpdate(Date.now());
+      console.log('[ProfileScreen] After refresh - timestamp updated');
+      setAvatarError(false);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshUser, user?.profile?.displayName]);
+
   return (
     <SafeAreaView style={styles.container}>
       <Header title="Profile" backgroundColor="#EFF1F3" />
@@ -258,6 +296,16 @@ const ProfileScreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         style={{ paddingTop: 20 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#990009']}
+            tintColor="#990009"
+            title="Pull to refresh"
+            titleColor="#666"
+          />
+        }
       >
         {/* User Info Card */}
         {isLoading ? (

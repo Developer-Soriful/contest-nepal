@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    DeviceEventEmitter,
     Image,
     KeyboardAvoidingView,
     Platform,
@@ -20,7 +21,7 @@ import Header from '../components/Header';
 
 // API Integration
 import { import_img } from '@/assets/import_img';
-import { useAuth } from '@/src/contexts/AuthContext';
+import { AUTH_EVENTS, useAuth } from '@/src/contexts/AuthContext';
 import SafeAsyncStorage from '@/src/lib/SafeAsyncStorage';
 import { authApi } from '@/src/services/api';
 
@@ -138,6 +139,10 @@ const EditProfile = () => {
                 // Force refresh user context BEFORE navigation
                 await refreshUser();
                 
+                // Broadcast to all screens that user data has been updated
+                DeviceEventEmitter.emit(AUTH_EVENTS.USER_UPDATED, profileResponse.data);
+                console.log('[EditProfile] Broadcast USER_UPDATED event');
+                
                 // Small delay to ensure state propagates
                 await new Promise(resolve => setTimeout(resolve, 300));
                 
@@ -150,7 +155,7 @@ const EditProfile = () => {
                 Alert.alert('Error', profileResponse.error?.title || 'Failed to update profile');
             }
         } catch (error) {
-            console.error('Save error:', error);
+            console.log('Save error:', error);
             Alert.alert('Error', 'An unexpected error occurred');
         } finally {
             setIsSaving(false);

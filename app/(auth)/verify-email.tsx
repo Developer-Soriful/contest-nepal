@@ -53,7 +53,7 @@ export default function VerifyEmail() {
                 );
             }
         } catch (error) {
-            console.error("Email verification error:", error);
+            console.log("Email verification error:", error);
             Alert.alert("Error", "An unexpected error occurred. Please try again.");
         } finally {
             setIsLoading(false);

@@ -6,6 +6,24 @@ import { Image, ImageSourcePropType, Platform, Pressable, StyleProp, Text, View,
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import CustomGradientButton from "./CustomGradientButton";
 
+// Date formatter utility
+const formatDate = (dateString: string): string => {
+  if (!dateString) return 'No date';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid date';
+    
+    const options: Intl.DateTimeFormatOptions = {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    };
+    return date.toLocaleDateString('en-US', options);
+  } catch {
+    return dateString;
+  }
+};
+
 
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -147,6 +165,7 @@ const ContestCard: React.FC<ContestCardProps> = ({
             flexDirection: "row",
             alignItems: "center",
             marginBottom: 6,
+            flexShrink: 1,
           }}
         >
           <Ionicons name="trophy-outline" size={16} color="#666" />
@@ -156,9 +175,12 @@ const ContestCard: React.FC<ContestCardProps> = ({
               color: "#666",
               marginLeft: 6,
               fontWeight: "500",
+              flex: 1,
             }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
           >
-            {reward}
+            {reward || 'Exciting Prize'}
           </Text>
         </View>
 
@@ -170,10 +192,13 @@ const ContestCard: React.FC<ContestCardProps> = ({
             marginBottom: 12,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
             <Ionicons name="time-outline" size={16} color="#666" />
-            <Text style={{ fontSize: 12, color: "#666", marginLeft: 6 }}>
-              {date}
+            <Text 
+              style={{ fontSize: 12, color: "#666", marginLeft: 6 }}
+              numberOfLines={1}
+            >
+              {formatDate(date)}
             </Text>
           </View>
           <View style={{ flexDirection: "row", alignItems: "center" }}>

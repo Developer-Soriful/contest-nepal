@@ -1,13 +1,14 @@
 import { import_img } from "@/assets/import_img";
-import { useAuth } from "@/src/contexts/AuthContext";
+import { AUTH_EVENTS, useAuth } from "@/src/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Image, Platform, Text, TouchableOpacity, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, DeviceEventEmitter, Image, Platform, Text, TouchableOpacity, View } from "react-native";
 
 const HomeHeader: React.FC = () => {
   const [avatarError, setAvatarError] = useState(false);
-  const { user, isLoading } = useAuth();
+  const [lastUpdate, setLastUpdate] = useState(Date.now());
+  const { user, isLoading, refreshUser } = useAuth();
 
   // Get real user data from AuthContext
   const userName = user?.profile?.displayName || user?.email?.split('@')[0] || "User";
@@ -15,11 +16,25 @@ const HomeHeader: React.FC = () => {
   const rawAvatarUrl = user?.profile?.avatarUrl;
   const avatarUri = rawAvatarUrl?.replace('localhost', '10.10.11.91') || null;
 
+  // Listen for user update events from AuthContext
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(AUTH_EVENTS.USER_UPDATED, (updatedUser) => {
+      console.log('[HomeHeader] Received USER_UPDATED event');
+      setAvatarError(false);
+      setLastUpdate(Date.now()); // Force re-render
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   // Reset avatarError when component is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('HomeHeader - Focused, resetting avatarError');
+      console.log('[HomeHeader] Focused, resetting avatarError and refreshing');
       setAvatarError(false);
+      refreshUser(); // Auto-refresh on focus
     }, [])
   );
   return (

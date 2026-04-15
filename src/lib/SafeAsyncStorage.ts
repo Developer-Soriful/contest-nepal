@@ -46,7 +46,7 @@ class SafeAsyncStorage {
       }
       return SafeAsyncStorage.memoryStorage[key] || null;
     } catch (error) {
-      console.error('AsyncStorage getItem error:', error);
+      console.log('AsyncStorage getItem error:', error);
       return SafeAsyncStorage.memoryStorage[key] || null;
     }
   }
@@ -70,7 +70,7 @@ class SafeAsyncStorage {
       SafeAsyncStorage.memoryStorage[key] = value;
       console.warn('SafeAsyncStorage: Using memory storage fallback for key:', key);
     } catch (error) {
-      console.error('SafeAsyncStorage setItem error:', error);
+      console.log('SafeAsyncStorage setItem error:', error);
       SafeAsyncStorage.memoryStorage[key] = value;
     }
   }
@@ -100,7 +100,7 @@ class SafeAsyncStorage {
       delete SafeAsyncStorage.memoryStorage[key];
       console.warn('Using memory storage fallback for remove key:', key);
     } catch (error) {
-      console.error('AsyncStorage removeItem error:', error);
+      console.log('AsyncStorage removeItem error:', error);
       delete SafeAsyncStorage.memoryStorage[key];
     }
   }
@@ -115,7 +115,7 @@ class SafeAsyncStorage {
       }
       return Object.keys(SafeAsyncStorage.memoryStorage);
     } catch (error) {
-      console.error('AsyncStorage getAllKeys error:', error);
+      console.log('AsyncStorage getAllKeys error:', error);
       return Object.keys(SafeAsyncStorage.memoryStorage);
     }
   }
@@ -132,7 +132,7 @@ class SafeAsyncStorage {
       SafeAsyncStorage.memoryStorage = {};
       console.warn('Using memory storage fallback for clear');
     } catch (error) {
-      console.error('AsyncStorage clear error:', error);
+      console.log('AsyncStorage clear error:', error);
       SafeAsyncStorage.memoryStorage = {};
     }
   }

@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   Image,
   ScrollView,
@@ -19,6 +20,7 @@ import Header from "../components/Header";
 import OrganizerInfo from "../components/OrganizerInfo";
 import PollComponent from "../components/PollComponent";
 import ReportModal from "../components/ReportModal";
+import { authApi } from "../services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -32,6 +34,45 @@ const COLORS = {
   cardBg: "#f5f4fe",
   white: "#FFFFFF",
   success: "#10B981",
+};
+
+// Date formatter utility
+const formatDate = (dateString: string): string => {
+  if (!dateString) return 'No date';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid date';
+    
+    const options: Intl.DateTimeFormatOptions = {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    };
+    return date.toLocaleDateString('en-US', options);
+  } catch {
+    return dateString;
+  }
+};
+
+// Calculate time remaining
+const getTimeRemaining = (endDateString: string) => {
+  if (!endDateString) return { days: 0, hours: 0, minutes: 0 };
+  
+  try {
+    const endDate = new Date(endDateString);
+    const now = new Date();
+    const diff = endDate.getTime() - now.getTime();
+    
+    if (diff <= 0) return { days: 0, hours: 0, minutes: 0 };
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    return { days, hours, minutes };
+  } catch {
+    return { days: 0, hours: 0, minutes: 0 };
+  }
 };
 
 const SectionTitle = ({ children }: { children: string }) => (
@@ -62,30 +103,117 @@ const RuleItem = ({ text }: { text: string }) => (
 
 // --- Main Screen ---
 
+interface ContestDetails {
+  id: string;
+  title: string;
+  description: string;
+  rules: string;
+  reward: string;
+  coverImageUrl: string;
+  startDate: string;
+  endDate: string;
+  status: string;
+  category: string;
+  participantCount: number;
+  submissionCount: number;
+  isActive: boolean;
+}
+
 export default function ContestDetailsScreen() {
   const insets = useSafeAreaInsets();
-  const searchParams = useLocalSearchParams();
-  const [isReportModalVisible, setIsReportModalVisible] = React.useState(false);
-  const contestType = (searchParams.type as string) || "standard";
+  const { contestId, type } = useLocalSearchParams<{ contestId: string; type: string }>();
+  const [contest, setContest] = useState<ContestDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+  const contestType = type || "standard";
 
-  const handleShare = async () => {
+  useEffect(() => {
+    if (!contestId) {
+      setError('No contest ID provided');
+      setLoading(false);
+      return;
+    }
+
+    fetchContestDetails();
+  }, [contestId]);
+
+  const fetchContestDetails = async () => {
     try {
-      await Share.share({
-        message: `Check out this contest on Contest Hub: Weekly Gift Card Drop! Join now and win exciting prizes. https://contesthub.app/contest/123`,
-        title: "Weekly Gift Card Drop",
-      });
-    } catch (error) {
-      console.error("Error sharing:", error);
+      setLoading(true);
+      console.log('[ContestDetail] Fetching contest:', contestId);
+      
+      const response = await authApi.getContestById(contestId as string);
+      
+      if (response.success && response.data) {
+        console.log('[ContestDetail] Contest loaded:', response.data.title);
+        setContest(response.data);
+      } else {
+        console.log('[ContestDetail] Failed to load:', response.error);
+        setError(response.error?.title || 'Failed to load contest');
+      }
+    } catch (err) {
+      console.log('[ContestDetail] Error:', err);
+      setError('Network error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleParticipate = () => console.log("Participate Pressed");
-  const handleStartEntry = () => {
-    router.replace("/entry-form");
+  const handleShare = async () => {
+    try {
+      const shareTitle = contest?.title || 'Contest';
+      await Share.share({
+        message: `Check out this contest on Contest Hub: ${shareTitle}! Join now and win exciting prizes.`,
+        title: shareTitle,
+      });
+    } catch (error) {
+      console.log("Error sharing:", error);
+    }
   };
+
+  const handleParticipate = () => {
+    if (contest?.id) {
+      router.push(`/entry-form?contestId=${contest.id}`);
+    }
+  };
+  
+  const handleStartEntry = () => {
+    if (contest?.id) {
+      router.replace(`/entry-form?contestId=${contest.id}`);
+    } else {
+      console.error('[ContestDetail] No contest ID available');
+    }
+  };
+  
   const handleViewEntries = () => {
     router.push("/all-contestants");
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: 16, color: COLORS.textSecondary }}>Loading contest...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !contest) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ color: COLORS.textSecondary, fontSize: 16 }}>
+          {error || 'Contest not found'}
+        </Text>
+        <TouchableOpacity onPress={fetchContestDetails} style={{ marginTop: 16 }}>
+          <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Retry</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  const timeRemaining = getTimeRemaining(contest.endDate);
+  const hasTimeRemaining = timeRemaining.days > 0 || timeRemaining.hours > 0 || timeRemaining.minutes > 0;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
@@ -134,9 +262,11 @@ export default function ContestDetailsScreen() {
         {/* Banner Image */}
         <View style={{ padding: 16 }}>
           <Image
-            source={{
-              uri: "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop",
-            }}
+            source={
+              contest.coverImageUrl && contest.coverImageUrl.trim() !== ''
+                ? { uri: contest.coverImageUrl }
+                : { uri: "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=2070&auto=format&fit=crop" }
+            }
             style={{ width: "100%", height: 200, borderRadius: 16 }}
             resizeMode="cover"
           />
@@ -157,7 +287,7 @@ export default function ContestDetailsScreen() {
               marginBottom: 12,
             }}
           >
-            Weekly Gift Card Drop
+            {contest.title}
           </Text>
 
           <SectionTitle>About this Contest</SectionTitle>
@@ -168,15 +298,17 @@ export default function ContestDetailsScreen() {
               marginBottom: 20,
             }}
           >
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam.
+            {contest.description || 'No description available'}
           </Text>
 
-          <SectionTitle>Rules & Requirement</SectionTitle>
-          <RuleItem text="Login daily to enter" />
-          <RuleItem text="Complete all profile details" />
-          <RuleItem text="Follow our social handles" />
+          {contest.rules && (
+            <>
+              <SectionTitle>Rules & Requirement</SectionTitle>
+              {contest.rules.split('\n').map((rule, index) => (
+                rule.trim() && <RuleItem key={index} text={rule.trim()} />
+              ))}
+            </>
+          )}
 
           {/* How to Participate Card */}
           <View
@@ -242,7 +374,7 @@ export default function ContestDetailsScreen() {
             >
               <Ionicons name="trophy-outline" size={24} color="#D97706" />
             </View>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 14, color: COLORS.textSecondary }}>
                 Grand Prize
               </Text>
@@ -252,11 +384,12 @@ export default function ContestDetailsScreen() {
                   fontWeight: "800",
                   color: COLORS.textDark,
                 }}
+                numberOfLines={2}
               >
-                $50 Amazon Gift Card
+                {contest.reward || 'Exciting Prize'}
               </Text>
               <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>
-                Plus recognition on our platform
+                Ends: {formatDate(contest.endDate)}
               </Text>
             </View>
           </View>
@@ -311,55 +444,59 @@ export default function ContestDetailsScreen() {
                   Participants
                 </Text>
               </View>
-              <Text style={{ fontWeight: "600" }}>120 Person</Text>
+              <Text style={{ fontWeight: "600" }}>
+                {contest.participantCount} Person
+              </Text>
             </View>
 
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Ionicons
-                  name="time-outline"
-                  size={20}
-                  color={COLORS.textSecondary}
-                />
-                <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>
-                  Time left
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                {["25", "36", "55"].map((time, i) => (
-                  <React.Fragment key={i}>
-                    <View
-                      style={{
-                        backgroundColor: "#fff",
-                        padding: 4,
-                        borderRadius: 4,
-                        minWidth: 30,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
-                        style={{ color: COLORS.primary, fontWeight: "700" }}
+            {hasTimeRemaining && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Ionicons
+                    name="time-outline"
+                    size={20}
+                    color={COLORS.textSecondary}
+                  />
+                  <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>
+                    Time left
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  {[timeRemaining.days.toString().padStart(2, '0'), timeRemaining.hours.toString().padStart(2, '0'), timeRemaining.minutes.toString().padStart(2, '0')].map((time, i) => (
+                    <React.Fragment key={i}>
+                      <View
+                        style={{
+                          backgroundColor: "#fff",
+                          padding: 4,
+                          borderRadius: 4,
+                          minWidth: 30,
+                          alignItems: "center",
+                        }}
                       >
-                        {time}
-                      </Text>
-                    </View>
-                    {i < 2 && (
-                      <Text
-                        style={{ marginHorizontal: 4, color: COLORS.primary }}
-                      >
-                        :
-                      </Text>
-                    )}
-                  </React.Fragment>
-                ))}
+                        <Text
+                          style={{ color: COLORS.primary, fontWeight: "700" }}
+                        >
+                          {time}
+                        </Text>
+                      </View>
+                      {i < 2 && (
+                        <Text
+                          style={{ marginHorizontal: 4, color: COLORS.primary }}
+                        >
+                          :
+                        </Text>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -403,8 +540,11 @@ export default function ContestDetailsScreen() {
           containerStyle={{ flex: 1, borderRadius: 10 }}
           borderRadius={10}
           title="View Entries"
-          backgroundColor="#111827"
+          backgroundColor="#FFEDCE"
           outerBorderColor="#111827"
+          textStyle={{
+            color: "#111827",
+          }}
           onPress={handleViewEntries}
         />
       </View>
@@ -412,7 +552,7 @@ export default function ContestDetailsScreen() {
       <ReportModal
         isVisible={isReportModalVisible}
         onClose={() => setIsReportModalVisible(false)}
-        targetName="Weekly Gift Card Drop"
+        targetName={contest.title}
       />
     </SafeAreaView>
   );

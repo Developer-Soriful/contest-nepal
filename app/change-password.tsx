@@ -78,7 +78,7 @@ export default function ChangePassword() {
                 );
             }
         } catch (error) {
-            console.error('ChangePassword - Error:', error);
+            console.log('ChangePassword - Error:', error);
             Alert.alert("Error", "An unexpected error occurred. Please try again.");
         } finally {
             setIsLoading(false);

@@ -1,13 +1,170 @@
+import * as Location from 'expo-location';
 import { router } from "expo-router";
-import React from "react";
-import { ScrollView, View } from "react-native";
+import React, { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, Dimensions, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ContestCard from '../../src/components/ContestCard';
+import ContestCardSkeleton from '../../src/components/ContestCardSkeleton';
 import HomeHeader from '../../src/components/HomeHeader';
 import PromotionalBanner from '../../src/components/PromotionalBanner';
 import SectionHeader from '../../src/components/SectionHeader';
+import { useAuth } from '../../src/contexts/AuthContext';
+import { authApi } from '../../src/services/api';
+
+// Types
+interface Contest {
+  id: string;
+  title: string;
+  reward: string;
+  endDate: string;
+  participantCount: number;
+  coverImageUrl?: string;
+  category?: string;
+  location?: string;
+  isActive: boolean;
+}
+
+interface Activity {
+  id: string;
+  contestId: string;
+  contestTitle: string;
+  reward: string;
+  endDate: string;
+  participantCount: number;
+  status: 'active' | 'submitted' | 'in_progress' | 'completed';
+  coverImageUrl?: string;
+}
 
 const HomePage = () => {
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Data states
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [trendingContests, setTrendingContests] = useState<Contest[]>([]);
+  const [nearbyContests, setNearbyContests] = useState<Contest[]>([]);
+
+  // Loading states per section
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [loadingTrending, setLoadingTrending] = useState(false);
+  const [loadingNearby, setLoadingNearby] = useState(false);
+
+  const { refreshUser, isLoading: isAuthLoading, isAuthenticated } = useAuth();
+
+  // Get user location for nearby contests
+  const getUserLocation = useCallback(async (): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      // Request location permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('[HomePage] Location permission denied');
+        return null;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const { latitude, longitude } = location.coords;
+      console.log('[HomePage] User location:', latitude, longitude);
+      return { lat: latitude, lng: longitude };
+    } catch (error) {
+      console.log('[HomePage] Error getting location:', error);
+      return null;
+    }
+  }, []);
+
+  // Fetch all data
+  const fetchAllData = useCallback(async (showLoading = false) => {
+    console.log('[HomePage] Fetching all data...');
+
+    if (showLoading) {
+      setLoadingActivities(true);
+      setLoadingTrending(true);
+      setLoadingNearby(true);
+    }
+
+    try {
+      // Get user location first (for nearby contests)
+      const userLocation = await getUserLocation();
+
+      // Fetch all APIs in parallel
+      const [activitiesRes, trendingRes, nearbyRes] = await Promise.all([
+        authApi.getMyActivities(),
+        authApi.getTrendingContests(),
+        userLocation
+          ? authApi.getNearbyContests(userLocation.lat, userLocation.lng)
+          : Promise.resolve({ success: false, data: { items: [] as Contest[], nextCursor: null }, error: { title: 'Location not available', status: 0 } }),
+      ]);
+
+      // Update activities - API returns { items: [...], nextCursor: null }
+      if (activitiesRes.success && activitiesRes.data?.items) {
+        console.log('[HomePage] Activities loaded:', activitiesRes.data.items.length);
+        setActivities(activitiesRes.data.items);
+      } else {
+        console.log('[HomePage] Failed to load activities:', activitiesRes.error);
+        setActivities([]); // Default to empty array to prevent crash
+      }
+      if (trendingRes.success && trendingRes.data?.items) {
+        console.log('[HomePage] Trending contests loaded:', trendingRes.data.items.length);
+        setTrendingContests(trendingRes.data.items);
+      } else {
+        console.log('[HomePage] Failed to load trending contests:', trendingRes.error);
+        setTrendingContests([]); // Default to empty array
+      }
+
+      // Update nearby contests - API returns { items: [...], nextCursor: null }
+      const nearbyData = nearbyRes.success && (nearbyRes as any).data?.items ? (nearbyRes as any).data.items : [];
+      console.log('[HomePage] Nearby contests loaded:', nearbyData.length);
+      setNearbyContests(nearbyData);
+    } catch (error) {
+      console.log('[HomePage] Error fetching data:', error);
+    } finally {
+      setLoadingActivities(false);
+      setLoadingTrending(false);
+      setLoadingNearby(false);
+      setLoading(false);
+    }
+  }, [getUserLocation]);
+
+  // Initial data fetch - wait for auth to initialize first
+  useEffect(() => {
+    if (!isAuthLoading) {
+      console.log('[HomePage] Auth initialized, fetching data...');
+      fetchAllData(true);
+    }
+  }, [fetchAllData, isAuthLoading]);
+
+  // Pull-to-refresh handler
+  const onRefresh = useCallback(async () => {
+    console.log('[HomePage] Pull to refresh triggered');
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refreshUser(),
+        fetchAllData(false),
+      ]);
+      console.log('[HomePage] Refresh completed');
+    } catch (error) {
+      console.log('[HomePage] Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshUser, fetchAllData]);
+
+  const { width: screenWidth } = Dimensions.get('window');
+  const horizontalPadding = 36;
+
+  // Show loading while auth is initializing
+  if (isAuthLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#ebf3f4", justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#990009" />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: "#ebf3f4", marginBottom: 30 }}
@@ -17,9 +174,20 @@ const HomePage = () => {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#990009']}
+            tintColor="#990009"
+            title="Pull to refresh"
+            titleColor="#990009"
+          />
+        }
       >
         {/* Promotional Banner */}
         <PromotionalBanner />
+
         {/* Your Activity Section */}
         <View style={{ marginTop: 20 }}>
           <View style={{ paddingHorizontal: 18 }}>
@@ -29,54 +197,49 @@ const HomePage = () => {
               onViewAllPress={() => router.push("/all-activities")}
             />
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: 18,
-              paddingVertical: 8,
-            }}
-          >
-            {[
-              {
-                id: "a-1",
-                title: "Win a Premium Gaming Setup",
-                reward: "$2,500 Gaming PC + Accessories",
-                date: "Feb 15, 2026",
-                joined: "1,145",
-                badge: "Active",
-              },
-              {
-                id: "a-2",
-                title: "Wildlife Photo Contest",
-                reward: "Canon EOS R5 Camera",
-                date: "Mar 10, 2026",
-                joined: "450",
-                badge: "In Progress",
-              },
-              {
-                id: "a-3",
-                title: "UI/UX Design Challenge",
-                reward: "Adobe CC Subscription",
-                date: "Mar 25, 2026",
-                joined: "280",
-                badge: "Submitted",
-              },
-            ].map((c) => (
-              <ContestCard
-                key={c.id}
-                title={c.title}
-                reward={c.reward}
-                date={c.date}
-                joined={c.joined}
-                badgeText={c.badge}
-                containerStyle={{ width: 300, marginRight: 16, marginBottom: 0 }}
+          {loadingActivities ? (
+            <View style={{ paddingLeft: 18, paddingVertical: 8 }}>
+              <ContestCardSkeleton
+                count={2}
+                containerWidth={activities.length === 1 ? screenWidth - horizontalPadding : 300}
               />
-            ))}
-          </ScrollView>
+            </View>
+          ) : activities.length === 0 ? (
+            <View style={{ paddingHorizontal: 18, paddingVertical: 20 }}>
+              <Text style={{ color: '#666', fontSize: 14 }}>
+                No activities yet. Join a contest to see it here!
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: 18,
+                paddingVertical: 8,
+              }}
+            >
+              {activities.map((activity, index) => (
+                <ContestCard
+                  key={activity.id || `activity-${index}`}
+                  title={activity.contestTitle}
+                  reward={activity.reward}
+                  date={activity.endDate}
+                  joined={activity.participantCount?.toString() || '0'}
+                  imageSource={activity.coverImageUrl && activity.coverImageUrl.trim() !== '' ? { uri: activity.coverImageUrl } : undefined}
+                  badgeText={activity.status}
+                  isActive={activity.status === 'active'}
+                  containerStyle={{
+                    width: activities.length === 1 ? screenWidth - horizontalPadding : 300,
+                    marginRight: activities.length === 1 ? 0 : 16,
+                    marginBottom: 0
+                  }} />
+              ))}
+            </ScrollView>
+          )}
         </View>
         {/* Promotional Banner */}
-        <PromotionalBanner marginBottom={32} />
+        {/* <PromotionalBanner marginBottom={32} /> */}
         {/* Featured Contest Section */}
         <View style={{ marginTop: 10 }}>
           <View style={{ paddingHorizontal: 18 }}>
@@ -86,65 +249,49 @@ const HomePage = () => {
               onViewAllPress={() => router.push("/all-contests?section=featured")}
             />
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: 18,
-              paddingVertical: 8,
-            }}
-          >
-            {[
-              {
-                id: "f-1",
-                title: "Premium Gaming Setup Giveaway",
-                reward: "$2,500 Gaming PC + Accessories",
-                date: "Ends Feb 28, 2026",
-                joined: "1,145",
-                image:
-                  "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop",
-                isActive: true,
-                badge: "Giveaway",
-              },
-              {
-                id: "f-2",
-                title: "Landscape Photo Challenge",
-                reward: "$500 Amazon Voucher",
-                date: "Ends Mar 5, 2026",
-                joined: "842",
-                image:
-                  "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop",
-                isActive: true,
-                badge: "Sponsored",
-              },
-              {
-                id: "f-3",
-                title: "Minimal Logo Design Contest",
-                reward: "$1,000 Cash Prize",
-                date: "Ends Mar 20, 2026",
-                joined: "420",
-                image:
-                  "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=1200&auto=format&fit=crop",
-                isActive: true,
-                badge: "Design",
-              },
-            ].map((c) => (
-              <ContestCard
-                key={c.id}
-                title={c.title}
-                reward={c.reward}
-                date={c.date}
-                joined={c.joined}
-                imageSource={{ uri: c.image }}
-                isActive={c.isActive}
-                badgeText={c.badge}
-                onPress={() =>
-                  router.push(`/featuredContestDetails?contestId=${c.id}`)
-                }
-                containerStyle={{ width: 300, marginRight: 16, marginBottom: 0 }}
+          {loadingTrending ? (
+            <View style={{ paddingLeft: 18, paddingVertical: 8 }}>
+              <ContestCardSkeleton
+                count={2}
+                containerWidth={trendingContests.length === 1 ? screenWidth - horizontalPadding : 300}
               />
-            ))}
-          </ScrollView>
+            </View>
+          ) : trendingContests.length === 0 ? (
+            <View style={{ paddingHorizontal: 18, paddingVertical: 20 }}>
+              <Text style={{ color: '#666', fontSize: 14 }}>
+                No featured contests available.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: 18,
+                paddingVertical: 8,
+              }}
+            >
+              {trendingContests.map((contest, index) => (
+                <ContestCard
+                  key={contest.id || `trending-${index}`}
+                  title={contest.title}
+                  reward={contest.reward}
+                  date={contest.endDate}
+                  joined={contest.participantCount?.toString() || '0'}
+                  imageSource={contest.coverImageUrl && contest.coverImageUrl.trim() !== '' ? { uri: contest.coverImageUrl } : undefined}
+                  isActive={contest.isActive}
+                  badgeText={contest.category || 'Featured'}
+                  onPress={() =>
+                    router.push(`/contest-detail?contestId=${contest.id}`)
+                  }
+                  containerStyle={{
+                    width: trendingContests.length === 1 ? screenWidth - horizontalPadding : 300,
+                    marginRight: trendingContests.length === 1 ? 0 : 16,
+                    marginBottom: 0
+                  }} />
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         {/* Contest nearby Section */}
@@ -156,51 +303,46 @@ const HomePage = () => {
               onViewAllPress={() => router.push("/all-contests?section=nearby")}
             />
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{
-              paddingHorizontal: 18,
-              paddingVertical: 8,
-            }}
-          >
-            {[
-              {
-                id: "n-1",
-                title: "City Street Photo Walk",
-                reward: "$250 Local Gift Card",
-                date: "Apr 02, 2026",
-                joined: "230",
-                image:
-                  "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop",
-                isActive: true,
-                badge: "Nearby",
-              },
-              {
-                id: "n-2",
-                title: "Community Art Sprint",
-                reward: "$300 Cash",
-                date: "Apr 10, 2026",
-                joined: "98",
-                image:
-                  "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop",
-                isActive: true,
-                badge: "Local",
-              },
-            ].map((c) => (
-              <ContestCard
-                key={c.id}
-                title={c.title}
-                reward={c.reward}
-                date={c.date}
-                joined={c.joined}
-                imageSource={{ uri: c.image }}
-                isActive={c.isActive}
-                badgeText={c.badge}
-                containerStyle={{ width: 300, marginRight: 16, marginBottom: 0 }}
+          {loadingNearby ? (
+            <View style={{ paddingLeft: 18, paddingVertical: 8 }}>
+              <ContestCardSkeleton
+                count={2}
+                containerWidth={nearbyContests.length === 1 ? screenWidth - horizontalPadding : 300}
               />
-            ))}
-          </ScrollView>
+            </View>
+          ) : nearbyContests.length === 0 ? (
+            <View style={{ paddingHorizontal: 18, paddingVertical: 20 }}>
+              <Text style={{ color: '#666', fontSize: 14 }}>
+                No nearby contests available.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: 18,
+                paddingVertical: 8,
+              }}
+            >
+              {nearbyContests.map((contest, index) => (
+                <ContestCard
+                  key={contest.id || `nearby-${index}`}
+                  title={contest.title}
+                  reward={contest.reward}
+                  date={contest.endDate}
+                  joined={contest.participantCount?.toString() || '0'}
+                  imageSource={contest.coverImageUrl && contest.coverImageUrl.trim() !== '' ? { uri: contest.coverImageUrl } : undefined}
+                  isActive={contest.isActive}
+                  badgeText={contest.location || 'Nearby'}
+                  containerStyle={{
+                    width: nearbyContests.length === 1 ? screenWidth - horizontalPadding : 300,
+                    marginRight: nearbyContests.length === 1 ? 0 : 16,
+                    marginBottom: 0
+                  }} />
+              ))}
+            </ScrollView>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
