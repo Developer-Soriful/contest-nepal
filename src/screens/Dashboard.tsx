@@ -1,51 +1,159 @@
 import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
-import { Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Image, RefreshControl, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Header from "../components/Header";
+import { authApi } from "../services/api";
+
+interface Submission {
+  _id: string;
+  contestId: {
+    _id: string;
+    title: string;
+    description?: string;
+    coverImageUrl?: string;
+    status?: string;
+    prizeDescription?: string;
+    stats?: {
+      participantCount?: number;
+      submissionCount?: number;
+    };
+  };
+  status: 'pending' | 'approved' | 'rejected';
+  bodyText?: string;
+  mediaUrls: string[];
+  createdAt: string;
+}
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("Joined Contests");
   const [submissionFilter, setSubmissionFilter] = useState("Approved");
+  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Calculate stats from submissions
+  const uniqueContestIds = new Set(submissions.map(s => s.contestId._id));
+  const contestsJoined = uniqueContestIds.size;
+  const pendingReview = submissions.filter(s => s.status === 'pending').length;
+  const submissionsApproved = submissions.filter(s => s.status === 'approved').length;
 
   const stats = [
-    { label: "Contests Joined", value: "03" },
-    { label: "Pending Review", value: "03" },
-    { label: "Submissions Approved", value: "03" },
+    { label: "Contests Joined", value: contestsJoined.toString().padStart(2, '0') },
+    { label: "Pending Review", value: pendingReview.toString().padStart(2, '0') },
+    { label: "Submissions Approved", value: submissionsApproved.toString().padStart(2, '0') },
   ];
 
-  const contests = [
+  // Fetch submissions from API
+  const fetchSubmissions = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    setError(null);
+    
+    try {
+      console.log('[Dashboard] Fetching submissions...');
+      const response = await authApi.getMySubmissions();
+      
+      if (response.success && response.data) {
+        // Backend returns { items: [...], nextCursor }
+        const items = response.data.items || [];
+        console.log('[Dashboard] Submissions loaded:', items.length);
+        setSubmissions(items);
+      } else {
+        console.log('[Dashboard] Failed to fetch submissions:', response.error);
+        setError(response.error?.title || 'Failed to load submissions');
+      }
+    } catch (err) {
+      console.log('[Dashboard] Error fetching submissions:', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchSubmissions();
+  }, []);
+
+  // Pull to refresh
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchSubmissions(false);
+  };
+
+  // Get unique contests from submissions (for Joined Contests tab)
+  const joinedContests = submissions.reduce((acc: any[], submission) => {
+    const contest = submission.contestId;
+    if (!contest) return acc;
+    if (!acc.find(c => c.id === contest._id)) {
+      acc.push({
+        id: contest._id,
+        title: contest.title,
+        description: contest.description || '',
+        image: contest.coverImageUrl || 'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=500',
+        status: contest.status === 'active' ? 'Active' : 'Ended',
+        statusColor: contest.status === 'active' ? '#00FF88' : '#FF6B6B',
+        statusBg: contest.status === 'active' ? '#E6FFF4' : '#FFF0F0',
+        participantCount: contest.stats?.participantCount || 0,
+      });
+    }
+    return acc;
+  }, []);
+
+  // For now, use static contests if no submissions
+  const contests = joinedContests.length > 0 ? joinedContests : [
     {
-      id: 1,
-      title: "Win a Premium Gaming Setup",
-      description:
-        "Capture the essence of summer in a single photo. We are looking for vibrant colors, outdoor adventures, and sunny vibes.",
-      image:
-        "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=500",
+      id: 'placeholder',
+      title: "No contests joined yet",
+      description: "Join a contest to see it here",
+      image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=500",
       status: "Active",
       statusColor: "#00FF88",
       statusBg: "#E6FFF4",
-    },
-    {
-      id: 2,
-      title: "Win a Premium Gaming Setup",
-      description:
-        "Capture the essence of summer in a single photo. We are looking for vibrant colors, outdoor adventures, and sunny vibes.",
-      image:
-        "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=500",
-      status: "Ended",
-      statusColor: "#FF6B6B",
-      statusBg: "#FFF0F0",
+      participantCount: 0,
     },
   ];
-  const notificationsData = [
+  // Generate notifications from submissions
+  const notificationsData = submissions.slice(0, 5).map(submission => {
+    const contestTitle = submission.contestId?.title || 'Unknown Contest';
+    const date = new Date(submission.createdAt).toISOString().split('T')[0];
+    if (submission.status === 'approved') {
+      return {
+        id: submission._id,
+        type: 'entry_approved',
+        title: 'Entry Approved',
+        message: `Your entry for "${contestTitle}" has been approved!`,
+        date,
+      };
+    } else if (submission.status === 'rejected') {
+      return {
+        id: submission._id,
+        type: 'entry_rejected',
+        title: 'Entry Rejected',
+        message: `Your submission for '${contestTitle}' was rejected.`,
+        date,
+      };
+    } else {
+      return {
+        id: submission._id,
+        type: 'new_contest',
+        title: 'Entry Submitted',
+        message: `You submitted an entry for "${contestTitle}"`,
+        date,
+      };
+    }
+  });
+
+  // Static notifications as fallback
+  const fallbackNotifications = [
     {
       id: "1",
       type: "prize_claimed",
       title: "Prize Claimed",
-      message:
-        "Congratulations! Your prize for 'Weekly Gift Card Drop' has been claimed successfully.",
+      message: "Congratulations! Your prize has been claimed successfully.",
       date: "2026-03-12",
     },
     {
@@ -178,93 +286,18 @@ const Dashboard = () => {
     );
   };
 
-  // Expanded Data for better UI testing
-  const mySubmissionsData = [
-    // Approved Submissions
-    {
-      id: "1",
-      title: "Win a Premium Gaming Setup",
-      date: "26 January 2026",
-      status: "Approved",
-    },
-    {
-      id: "2",
-      title: "Street Photography Contest",
-      date: "20 January 2026",
-      status: "Approved",
-    },
-    {
-      id: "3",
-      title: "Minimalist Logo Design",
-      date: "15 January 2026",
-      status: "Approved",
-    },
-    {
-      id: "4",
-      title: "Summer Travel Vlog",
-      date: "10 January 2026",
-      status: "Approved",
-    },
-
-    // Pending Submissions
-    {
-      id: "5",
-      title: "Win a Premium Gaming Setup",
-      date: "26 January 2026",
-      status: "Pending",
-    },
-    {
-      id: "6",
-      title: "Win a Premium Gaming Setup",
-      date: "26 January 2026",
-      status: "Pending",
-    },
-    {
-      id: "7",
-      title: "Creative Writing Challenge",
-      date: "02 February 2026",
-      status: "Pending",
-    },
-    {
-      id: "8",
-      title: "Digital Art Showcase",
-      date: "04 February 2026",
-      status: "Pending",
-    },
-
-    // Rejected Submissions
-    {
-      id: "9",
-      title: "Win a Premium Gaming Setup",
-      date: "26 January 2026",
-      status: "Rejected",
-      reason:
-        "Image does not meet the minimum resolution requirement (800x600).",
-    },
-    {
-      id: "10",
-      title: "Logo Redesign Contest",
-      date: "12 January 2026",
-      status: "Rejected",
-      reason: "Submitted design includes trademarked material.",
-    },
-    {
-      id: "11",
-      title: "Nature Photography",
-      date: "05 January 2026",
-      status: "Rejected",
-      reason:
-        "Photo contains identifying personal information; please blur faces.",
-    },
-    {
-      id: "12",
-      title: "UI/UX Mobile App Design",
-      date: "01 January 2026",
-      status: "Rejected",
-      reason:
-        "Submission did not follow the provided design brief (missing required screens).",
-    },
-  ];
+  // Generate submissions data from API response
+  const mySubmissionsData = submissions.map(submission => ({
+    id: submission._id,
+    title: submission.contestId?.title || 'Unknown Contest',
+    date: new Date(submission.createdAt).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    }),
+    status: submission.status.charAt(0).toUpperCase() + submission.status.slice(1),
+    reason: submission.status === 'rejected' ? 'Submission did not meet contest requirements' : undefined,
+  }));
 
   const SubmissionItem = ({
     title,
@@ -360,7 +393,12 @@ const Dashboard = () => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       <Header title="Dashboard" />
-      <ScrollView contentContainerStyle={{ padding: 15, paddingBottom: 40 }}>
+      <ScrollView 
+        contentContainerStyle={{ padding: 15, paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {/* Stats Row */}
         <View
           style={{

@@ -156,12 +156,21 @@ class ApiClient {
         console.log('handleResponse: Token refresh failed or no context, cannot retry');
       }
 
+      // Backend returns error in different formats:
+      // 1. { error: { title, status } }
+      // 2. { title, status, code, type } - direct error response
+      const error = data.error || (data.title ? { 
+        title: data.title, 
+        status: data.status || response.status,
+        code: data.code 
+      } : { 
+        title: 'Request failed', 
+        status: response.status 
+      });
+      
       return {
         success: false,
-        error: data.error || {
-          title: 'Request failed',
-          status: response.status,
-        },
+        error,
       };
     }
 
@@ -276,7 +285,7 @@ class ApiClient {
     }
   }
 
-  private async refreshToken(): Promise<boolean> {
+  public async refreshToken(): Promise<boolean> {
     try {
       const { refreshToken } = await this.getTokens();
       
@@ -871,50 +880,42 @@ export const authApi = {
 
   // Upload avatar image
   // Uses new backend endpoint: POST /v1/upload/avatar
+  // Handles token refresh on 401 errors
   async uploadAvatar(imageUri: string): Promise<ApiResponse<{ avatarUrl: string }>> {
-    try {
-      console.log('API: Uploading avatar to backend:', imageUri);
-      
-      // Ensure proper file URI format for React Native
-      let fileUri = imageUri;
-      if (Platform.OS === 'android' && !imageUri.startsWith('file://')) {
-        fileUri = `file://${imageUri}`;
-      }
-      
-      // Get filename and create form data
-      const filename = imageUri.split('/').pop() || 'avatar.jpg';
-      const match = /\.\w+$/.exec(filename);
-      const type = match ? `image/${match[0].substring(1)}` : 'image/jpeg';
-      
-      console.log('API: File details - uri:', fileUri, 'name:', filename, 'type:', type);
-      
-      const formData = new FormData();
-      formData.append('avatar', {
-        uri: fileUri,
-        name: filename,
-        type,
-      } as any);
-
-      const token = await SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-      const uploadUrl = `${API_BASE_URL}/v1/upload/avatar`;
-      
-      console.log('API: Uploading to:', uploadUrl);
-      console.log('API: Token exists:', !!token);
-      
-      // Use XMLHttpRequest for better React Native FormData support
+    // Use apiClient's protected method for token refresh
+    
+    const attemptUpload = async (token: string | null): Promise<ApiResponse<{ avatarUrl: string }>> => {
       return new Promise((resolve) => {
+        // Ensure proper file URI format for React Native
+        let fileUri = imageUri;
+        if (Platform.OS === 'android' && !imageUri.startsWith('file://')) {
+          fileUri = `file://${imageUri}`;
+        }
+        
+        // Get filename and create form data
+        const filename = imageUri.split('/').pop() || 'avatar.jpg';
+        const match = /\.\w+$/.exec(filename);
+        const type = match ? `image/${match[0].substring(1)}` : 'image/jpeg';
+        
+        const formData = new FormData();
+        formData.append('avatar', {
+          uri: fileUri,
+          name: filename,
+          type,
+        } as any);
+
+        const uploadUrl = `${API_BASE_URL}/v1/upload/avatar`;
+        
         const xhr = new XMLHttpRequest();
         
         xhr.onload = () => {
           console.log('API: Upload response status:', xhr.status);
-          console.log('API: Upload response text:', xhr.responseText?.substring(0, 500));
           
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const data = JSON.parse(xhr.responseText);
               resolve({ success: true, data });
             } catch (e) {
-              console.log('API: Failed to parse response as JSON:', xhr.responseText);
               resolve({
                 success: false,
                 error: { title: 'Invalid server response', status: xhr.status },
@@ -937,17 +938,14 @@ export const authApi = {
         };
         
         xhr.onerror = () => {
-          console.log('API: XMLHttpRequest error');
-          console.log('API: Status:', xhr.status, xhr.statusText);
           resolve({
             success: false,
             error: { title: 'Network error - check server connection', status: 0 },
           });
         };
         
-        xhr.timeout = 30000; // 30 second timeout
+        xhr.timeout = 30000;
         xhr.ontimeout = () => {
-          console.log('API: XMLHttpRequest timeout');
           resolve({
             success: false,
             error: { title: 'Upload timeout - server may be slow', status: 0 },
@@ -958,10 +956,35 @@ export const authApi = {
         xhr.setRequestHeader('Authorization', `Bearer ${token || ''}`);
         xhr.send(formData);
       });
+    };
+
+    try {
+      console.log('API: Uploading avatar to backend:', imageUri);
+      
+      // Get current token
+      let token = await SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+      console.log('API: Token exists:', !!token);
+      
+      // First attempt
+      let response = await attemptUpload(token);
+      
+      // If 401, try to refresh token and retry once
+      if (!response.success && response.error?.status === 401) {
+        console.log('API: Got 401, attempting token refresh...');
+        const refreshSuccess = await apiClient.refreshToken();
+        
+        if (refreshSuccess) {
+          console.log('API: Token refreshed, retrying upload...');
+          token = await SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
+          response = await attemptUpload(token);
+        } else {
+          console.log('API: Token refresh failed');
+        }
+      }
+      
+      return response;
     } catch (error: any) {
       console.log('API: Avatar upload error:', error);
-      console.log('API: Error message:', error.message);
-      console.log('API: Error stack:', error.stack);
       return {
         success: false,
         error: { title: `Network error: ${error.message || 'Unknown error'}`, status: 0 },
@@ -999,6 +1022,8 @@ export const authApi = {
   }>> {
     try {
       console.log('API: Creating submission for contest:', contestId);
+      console.log('API: Submission data:', JSON.stringify(data, null, 2));
+      
       const response = await apiClient.post<{
         _id: string;
         contestId: string;
@@ -1013,13 +1038,15 @@ export const authApi = {
         }>;
         createdAt: string;
       }>(`/v1/contests/${contestId}/submissions`, data);
-      console.log('API: Submission created:', response);
+      
+      console.log('API: Submission response:', JSON.stringify(response, null, 2));
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.log('API: Error creating submission:', error);
+      console.log('API: Error response:', error?.response?.data);
       return {
         success: false,
-        error: { title: 'Failed to submit entry', status: 500 },
+        error: { title: error?.response?.data?.message || 'Failed to submit entry', status: error?.response?.status || 500 },
       };
     }
   },
@@ -1089,5 +1116,70 @@ export const authApi = {
         error: { title: 'Failed to fetch contest', status: 500 },
       };
     }
+  },
+
+  // Get my submissions
+  // Backend endpoint: GET /v1/me/submissions
+  // Backend returns: { items: Submission[], nextCursor: string | null }
+  async getMySubmissions(): Promise<ApiResponse<{
+    items: Array<{
+      _id: string;
+      contestId: {
+        _id: string;
+        title: string;
+        description?: string;
+        coverImageUrl?: string;
+        status?: string;
+        prizeDescription?: string;
+        stats?: {
+          participantCount?: number;
+          submissionCount?: number;
+        };
+      };
+      status: 'pending' | 'approved' | 'rejected';
+      bodyText?: string;
+      mediaUrls: string[];
+      createdAt: string;
+    }>;
+    nextCursor?: string | null;
+  }>> {
+    try {
+      console.log('API: Fetching my submissions');
+      const response = await apiClient.get<{
+        items: Array<{
+          _id: string;
+          contestId: {
+            _id: string;
+            title: string;
+            description?: string;
+            coverImageUrl?: string;
+            status?: string;
+            prizeDescription?: string;
+            stats?: {
+              participantCount?: number;
+              submissionCount?: number;
+            };
+          };
+          status: 'pending' | 'approved' | 'rejected';
+          bodyText?: string;
+          mediaUrls: string[];
+          createdAt: string;
+        }>;
+        nextCursor?: string | null;
+      }>('/v1/me/submissions');
+      console.log('API: My submissions response:', response);
+      return response;
+    } catch (error: any) {
+      console.log('API: Error fetching my submissions:', error);
+      return {
+        success: false,
+        error: { title: 'Failed to fetch submissions', status: error?.response?.status || 500 },
+      };
+    }
+  },
+
+  // Get tokens from storage
+  async getTokens(): Promise<{ accessToken: string | null; refreshToken: string | null }> {
+    return apiClient.getTokens();
   },
 };

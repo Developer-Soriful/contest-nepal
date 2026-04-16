@@ -90,20 +90,32 @@ const HomePage = () => {
       const userLocation = await getUserLocation();
 
       // Fetch all APIs in parallel
-      const [activitiesRes, trendingRes, nearbyRes] = await Promise.all([
-        authApi.getMyActivities(),
+      const [submissionsRes, trendingRes, nearbyRes] = await Promise.all([
+        authApi.getMySubmissions(),
         authApi.getTrendingContests(),
         userLocation
           ? authApi.getNearbyContests(userLocation.lat, userLocation.lng)
           : Promise.resolve({ success: false, data: { items: [] as Contest[], nextCursor: null }, error: { title: 'Location not available', status: 0 } }),
       ]);
 
-      // Update activities - API returns { items: [...], nextCursor: null }
-      if (activitiesRes.success && activitiesRes.data?.items) {
-        console.log('[HomePage] Activities loaded:', activitiesRes.data.items.length);
-        setActivities(activitiesRes.data.items);
+      // Update activities from submissions - API returns { items: [...], nextCursor: null }
+      if (submissionsRes.success && submissionsRes.data?.items) {
+        const submissionItems = submissionsRes.data.items;
+        console.log('[HomePage] Submissions loaded for activities:', submissionItems.length);
+        // Map submissions to activities format
+        const mappedActivities: Activity[] = submissionItems.map(sub => ({
+          id: sub._id,
+          contestId: sub.contestId?._id || '',
+          contestTitle: sub.contestId?.title || 'Unknown Contest',
+          reward: sub.contestId?.prizeDescription || '',
+          endDate: sub.createdAt,
+          participantCount: sub.contestId?.stats?.participantCount || 0,
+          status: (sub.status === 'approved' ? 'completed' : sub.status === 'rejected' ? 'completed' : 'submitted') as Activity['status'],
+          coverImageUrl: sub.contestId?.coverImageUrl,
+        }));
+        setActivities(mappedActivities);
       } else {
-        console.log('[HomePage] Failed to load activities:', activitiesRes.error);
+        console.log('[HomePage] Failed to load activities:', submissionsRes.error);
         setActivities([]); // Default to empty array to prevent crash
       }
       if (trendingRes.success && trendingRes.data?.items) {
