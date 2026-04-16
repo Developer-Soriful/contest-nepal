@@ -1,14 +1,19 @@
-import React from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   ImageSourcePropType,
   ListRenderItem,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ContestCard from "../components/ContestCard";
+import EmptyState from "../components/EmptyState";
 import Header from "../components/Header";
+import { authApi } from "../services/api";
 
 type Activity = {
   id: string;
@@ -22,71 +27,68 @@ type Activity = {
   status?: "Active" | "In Progress" | "Submitted" | "Completed";
 };
 
-const MOCK_ACTIVITIES: Activity[] = [
-  {
-    id: "a-1",
-    title: "Win a Premium Gaming Setup",
-    reward: "$2,500 Gaming PC + Accessories",
-    date: "Feb 15, 2026",
-    joined: "1,145",
-    image:
-      "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop",
-    badge: "Active",
-    isActive: true,
-    status: "Active",
-  },
-  {
-    id: "a-2",
-    title: "Wildlife Photo Contest",
-    reward: "Canon EOS R5 Camera",
-    date: "Mar 10, 2026",
-    joined: "450",
-    image:
-      "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop",
-    badge: "In Progress",
-    isActive: true,
-    status: "In Progress",
-  },
-  {
-    id: "a-3",
-    title: "UI/UX Design Challenge",
-    reward: "Adobe CC Subscription",
-    date: "Mar 25, 2026",
-    joined: "280",
-    image:
-      "https://images.unsplash.com/photo-1561070791-2526d30994b5?q=80&w=1200&auto=format&fit=crop",
-    badge: "Submitted",
-    isActive: true,
-    status: "Submitted",
-  },
-  {
-    id: "a-4",
-    title: "Coding Hackathon 2026",
-    reward: "MacBook Pro M3",
-    date: "Jan 20, 2026",
-    joined: "890",
-    image:
-      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=1200&auto=format&fit=crop",
-    badge: "Completed",
-    isActive: false,
-    status: "Completed",
-  },
-  {
-    id: "a-5",
-    title: "Mobile App Design Sprint",
-    reward: "Figma Pro Annual",
-    date: "Feb 28, 2026",
-    joined: "340",
-    image:
-      "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?q=80&w=1200&auto=format&fit=crop",
-    badge: "Active",
-    isActive: true,
-    status: "Active",
-  },
-];
-
 const AllActivities = () => {
-  const renderItem: ListRenderItem<Activity> = ({ item }) => (
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchActivities();
+    }, [])
+  );
+
+  const fetchActivities = async () => {
+    setIsLoading(true);
+    try {
+      const response = await authApi.getMySubmissions();
+      if (response.success && response.data?.items) {
+        const mappedData = response.data.items.map((item: any) => {
+          const contest = item.contestId || {};
+
+          let badge = "Submitted";
+          let isActive = true;
+          let statusLabel: any = "Submitted";
+
+          if (item.status === "approved") {
+            badge = "Active";
+            statusLabel = "Active";
+          } else if (item.status === "rejected") {
+            badge = "Rejected";
+            isActive = false;
+            statusLabel = "Completed"; // Using Completed style for finality
+          }
+
+          return {
+            id: item._id,
+            contestId: contest._id, // Save for navigation
+            title: contest.title || "Unknown Contest",
+            reward: contest.prizeDescription || "Trophy / Reward",
+            date: contest.endsAt ? new Date(contest.endsAt).toLocaleDateString() : "TBD",
+            joined: contest.stats?.participantCount?.toString() || "0",
+            image: contest.coverImageUrl || "https://images.unsplash.com/photo-1511512578047-dfb367046420",
+            badge,
+            isActive,
+            status: statusLabel,
+          };
+        });
+        setActivities(mappedData);
+      }
+    } catch (error) {
+      console.log("Error fetching activities:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePress = (contestId: string) => {
+    if (!contestId) return;
+    router.push({
+      pathname: "/contest-detail",
+      params: { contestId }
+    });
+  };
+
+  const renderItem: ListRenderItem<Activity & { contestId: string }> = ({ item }) => (
     <View style={styles.cardWrapper}>
       <ContestCard
         type="full"
@@ -98,21 +100,37 @@ const AllActivities = () => {
         badgeText={item.badge}
         isActive={item.isActive}
         buttonTitle={item.status === "Completed" ? "View Results" : "View Details"}
-        onPress={() => {}}
+        onPress={() => handlePress(item.contestId)}
       />
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <Header title="Your Activity" />
-      <FlatList
-        data={MOCK_ACTIVITIES}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-      />
+      <Header title="All Activities" />
+      {isLoading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color="#990009" />
+          <Text style={{ marginTop: 10, color: "#667085" }}>Loading your activities...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={activities}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem as any}
+          contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          ListEmptyComponent={
+            <EmptyState
+              icon="trophy-outline"
+              title="No Activities Yet"
+              message="Your contest history is empty. Join a contest and showcase your skills to see your activities here!"
+              buttonText="Explore Contests"
+              onButtonPress={() => router.push("/")}
+            />
+          }
+        />
+      )}
     </SafeAreaView>
   );
 };

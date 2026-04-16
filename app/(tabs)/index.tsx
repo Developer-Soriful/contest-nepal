@@ -1,18 +1,19 @@
 import * as Location from 'expo-location';
 import { router } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Dimensions, RefreshControl, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Dimensions, RefreshControl, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ContestCard from '../../src/components/ContestCard';
 import ContestCardSkeleton from '../../src/components/ContestCardSkeleton';
+import EmptyState from '../../src/components/EmptyState';
 import HomeHeader from '../../src/components/HomeHeader';
 import PromotionalBanner from '../../src/components/PromotionalBanner';
 import SectionHeader from '../../src/components/SectionHeader';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { authApi } from '../../src/services/api';
+import { authApi, Contest } from '../../src/services/api';
 
-// Types
-interface Contest {
+// Local UI Types
+interface LocalContest {
   id: string;
   title: string;
   reward: string;
@@ -24,7 +25,7 @@ interface Contest {
   isActive: boolean;
 }
 
-interface Activity {
+interface LocalActivity {
   id: string;
   contestId: string;
   contestTitle: string;
@@ -40,9 +41,9 @@ const HomePage = () => {
   const [loading, setLoading] = useState(true);
 
   // Data states
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [trendingContests, setTrendingContests] = useState<Contest[]>([]);
-  const [nearbyContests, setNearbyContests] = useState<Contest[]>([]);
+  const [activities, setActivities] = useState<LocalActivity[]>([]);
+  const [trendingContests, setTrendingContests] = useState<LocalContest[]>([]);
+  const [nearbyContests, setNearbyContests] = useState<LocalContest[]>([]);
 
   // Loading states per section
   const [loadingActivities, setLoadingActivities] = useState(false);
@@ -103,14 +104,14 @@ const HomePage = () => {
         const submissionItems = submissionsRes.data.items;
         console.log('[HomePage] Submissions loaded for activities:', submissionItems.length);
         // Map submissions to activities format
-        const mappedActivities: Activity[] = submissionItems.map(sub => ({
+        const mappedActivities: LocalActivity[] = submissionItems.map(sub => ({
           id: sub._id,
           contestId: sub.contestId?._id || '',
           contestTitle: sub.contestId?.title || 'Unknown Contest',
           reward: sub.contestId?.prizeDescription || '',
           endDate: sub.createdAt,
           participantCount: sub.contestId?.stats?.participantCount || 0,
-          status: (sub.status === 'approved' ? 'completed' : sub.status === 'rejected' ? 'completed' : 'submitted') as Activity['status'],
+          status: (sub.status === 'approved' ? 'completed' : sub.status === 'rejected' ? 'completed' : 'submitted') as LocalActivity['status'],
           coverImageUrl: sub.contestId?.coverImageUrl,
         }));
         setActivities(mappedActivities);
@@ -120,16 +121,40 @@ const HomePage = () => {
       }
       if (trendingRes.success && trendingRes.data?.items) {
         console.log('[HomePage] Trending contests loaded:', trendingRes.data.items.length);
-        setTrendingContests(trendingRes.data.items);
+        const mappedTrending: LocalContest[] = trendingRes.data.items.map((c: any) => ({
+          id: c._id,
+          title: c.title,
+          reward: c.prizeDescription || "Reward",
+          endDate: c.endsAt ? new Date(c.endsAt).toLocaleDateString() : "Active",
+          participantCount: c.stats?.participantCount || 0,
+          coverImageUrl: c.coverImageUrl,
+          isActive: c.status === "active",
+          category: c.type === "SUBMISSION_VOTING" ? "Voting" : "Featured"
+        }));
+        setTrendingContests(mappedTrending);
       } else {
         console.log('[HomePage] Failed to load trending contests:', trendingRes.error);
-        setTrendingContests([]); // Default to empty array
+        setTrendingContests([]);
       }
 
-      // Update nearby contests - API returns { items: [...], nextCursor: null }
-      const nearbyData = nearbyRes.success && (nearbyRes as any).data?.items ? (nearbyRes as any).data.items : [];
-      console.log('[HomePage] Nearby contests loaded:', nearbyData.length);
-      setNearbyContests(nearbyData);
+      // Update nearby contests
+      if (nearbyRes.success && (nearbyRes as any).data?.items) {
+        const items = (nearbyRes as any).data.items;
+        console.log('[HomePage] Nearby contests loaded:', items.length);
+        const mappedNearby: LocalContest[] = items.map((c: any) => ({
+          id: c._id,
+          title: c.title,
+          reward: c.prizeDescription || "Reward",
+          endDate: c.endsAt ? new Date(c.endsAt).toLocaleDateString() : "Active",
+          participantCount: c.stats?.participantCount || 0,
+          coverImageUrl: c.coverImageUrl,
+          isActive: c.status === "active",
+          location: "Nearby"
+        }));
+        setNearbyContests(mappedNearby);
+      } else {
+        setNearbyContests([]);
+      }
     } catch (error) {
       console.log('[HomePage] Error fetching data:', error);
     } finally {
@@ -217,11 +242,12 @@ const HomePage = () => {
               />
             </View>
           ) : activities.length === 0 ? (
-            <View style={{ paddingHorizontal: 18, paddingVertical: 20 }}>
-              <Text style={{ color: '#666', fontSize: 14 }}>
-                No activities yet. Join a contest to see it here!
-              </Text>
-            </View>
+            <EmptyState
+              icon="trophy-outline"
+              title="No Activities"
+              message="Join a contest to see your progress here!"
+              style={{ marginTop: 0, padding: 20 }}
+            />
           ) : (
             <ScrollView
               horizontal
@@ -277,11 +303,12 @@ const HomePage = () => {
               />
             </View>
           ) : trendingContests.length === 0 ? (
-            <View style={{ paddingHorizontal: 18, paddingVertical: 20 }}>
-              <Text style={{ color: '#666', fontSize: 14 }}>
-                No featured contests available.
-              </Text>
-            </View>
+            <EmptyState
+              icon="star-outline"
+              title="Nothing Featured"
+              message="New premium contests are coming soon!"
+              style={{ marginTop: 0, padding: 20 }}
+            />
           ) : (
             <ScrollView
               horizontal
@@ -331,11 +358,12 @@ const HomePage = () => {
               />
             </View>
           ) : nearbyContests.length === 0 ? (
-            <View style={{ paddingHorizontal: 18, paddingVertical: 20 }}>
-              <Text style={{ color: '#666', fontSize: 14 }}>
-                No nearby contests available.
-              </Text>
-            </View>
+            <EmptyState
+              icon="map-outline"
+              title="None Nearby"
+              message="Try expanding your search radius later!"
+              style={{ marginTop: 0, padding: 20 }}
+            />
           ) : (
             <ScrollView
               horizontal

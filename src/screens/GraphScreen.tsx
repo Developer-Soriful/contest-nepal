@@ -123,7 +123,7 @@ const GraphScreen = () => {
                       <Text style={styles.barLabel}>{item.label}</Text>
                     </View>
                   ))}
-                  
+
                   {/* Empty State Overlay */}
                   {(!stats || stats.activity.every(a => a.value === 0)) && (
                     <View style={styles.chartOverlay}>

@@ -14,12 +14,12 @@ const getImageUrl = (path: string | null | undefined): string => {
     // Default placeholder for missing images
     return "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=500";
   }
-  
+
   // If it's already an absolute URL (Cloudinary, S3, etc.), return as-is
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
-  
+
   // Ensure we don't duplicate slashes
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${API_BASE_URL}${normalizedPath}`;
@@ -171,6 +171,21 @@ export interface UserStats {
   achievements: Array<{ title: string; description: string; icon: string; color: string }>;
 }
 
+export interface Contest {
+  _id: string;
+  title: string;
+  type: string;
+  status: string;
+  startsAt: string;
+  endsAt: string;
+  prizeDescription?: string;
+  coverImageUrl?: string;
+  stats?: {
+    participantCount?: number;
+    submissionCount?: number;
+  };
+}
+
 // HTTP Client with token management
 class ApiClient {
   private baseURL: string;
@@ -182,7 +197,7 @@ class ApiClient {
   private async getAuthHeaders(): Promise<Record<string, string>> {
     const accessToken = await SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
     console.log('getAuthHeaders - token exists:', !!accessToken, 'token preview:', accessToken ? accessToken.substring(0, 20) + '...' : 'none');
-    
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -216,15 +231,15 @@ class ApiClient {
       // Backend returns error in different formats:
       // 1. { error: { title, status } }
       // 2. { title, status, code, type } - direct error response
-      const error = data.error || (data.title ? { 
-        title: data.title, 
+      const error = data.error || (data.title ? {
+        title: data.title,
         status: data.status || response.status,
-        code: data.code 
-      } : { 
-        title: 'Request failed', 
-        status: response.status 
+        code: data.code
+      } : {
+        title: 'Request failed',
+        status: response.status
       });
-      
+
       return {
         success: false,
         error,
@@ -316,7 +331,7 @@ class ApiClient {
       if (!SafeAsyncStorage) {
         return { accessToken: null, refreshToken: null };
       }
-      
+
       const [accessToken, refreshToken] = await Promise.all([
         SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
         SafeAsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
@@ -345,14 +360,14 @@ class ApiClient {
   public async refreshToken(): Promise<boolean> {
     try {
       const { refreshToken } = await this.getTokens();
-      
+
       if (!refreshToken) {
         console.log('No refresh token available');
         return false;
       }
 
       console.log('Attempting token refresh...');
-      
+
       // Use raw fetch without Authorization header to avoid sending expired token
       const response = await fetch(`${this.baseURL}/v1/auth/refresh`, {
         method: 'POST',
@@ -367,7 +382,7 @@ class ApiClient {
 
       if (!response.ok) {
         console.log('Token refresh failed:', data);
-        
+
         // If refresh token is invalid/expired, clear auth and return false
         // This will trigger a logout/redirect to login
         if (data.code === 'INVALID_REFRESH' || response.status === 401) {
@@ -376,7 +391,7 @@ class ApiClient {
           // Store a flag that user needs to re-login
           await SafeAsyncStorage.setItem('SESSION_EXPIRED', 'true');
         }
-        
+
         return false;
       }
 
@@ -409,7 +424,7 @@ export const authApi = {
   async register(data: RegisterRequest): Promise<ApiResponse<AuthResponse>> {
     const validatedData = registerSchema.parse(data);
     const response = await apiClient.post<AuthResponse>('/v1/auth/register', validatedData);
-    
+
     if (response.success && response.data) {
       // Only set tokens if they exist (email verification not required)
       if (response.data.tokens) {
@@ -422,7 +437,7 @@ export const authApi = {
       // Always save user data (needed for verification screen)
       await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user));
     }
-    
+
     return response;
   },
 
@@ -436,23 +451,23 @@ export const authApi = {
     if (response.success && response.data) {
       console.log('Access token exists:', !!response.data.tokens?.accessToken);
       console.log('Refresh token exists:', !!response.data.tokens?.refreshToken);
-      
+
       // Store tokens
       await apiClient.setTokens(response.data.tokens?.accessToken || '', response.data.tokens?.refreshToken || '');
-      
+
       // Normalize avatar URL
       if (response.data.user?.profile) {
         response.data.user.profile.avatarUrl = getImageUrl(response.data.user.profile.avatarUrl);
       }
-      
+
       await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user));
-      
+
       // Force flush to ensure data persists
       await SafeAsyncStorage.flush();
-      
+
       // Clear session expired flag on successful login
       await SafeAsyncStorage.removeItem('SESSION_EXPIRED');
-      
+
       // Verify storage worked
       const [storedUser, storedAccess, storedRefresh] = await Promise.all([
         SafeAsyncStorage.getItem(STORAGE_KEYS.USER_DATA),
@@ -478,11 +493,11 @@ export const authApi = {
   // Logout user
   async logout(): Promise<ApiResponse<void>> {
     const { refreshToken } = await apiClient.getTokens();
-    
+
     if (refreshToken) {
       await apiClient.post<void>('/v1/auth/logout', { refreshToken });
     }
-    
+
     await apiClient.clearTokens();
     return { success: true };
   },
@@ -490,7 +505,7 @@ export const authApi = {
   // Refresh tokens - note: this uses raw fetch to avoid sending expired access token
   async refreshTokens(): Promise<ApiResponse<{ accessToken: string; refreshToken: string }>> {
     const { refreshToken } = await apiClient.getTokens();
-    
+
     if (!refreshToken) {
       return {
         success: false,
@@ -517,7 +532,7 @@ export const authApi = {
           await apiClient.clearTokens();
           await SafeAsyncStorage.setItem('SESSION_EXPIRED', 'true');
         }
-        
+
         return {
           success: false,
           error: data.error || { title: 'Token refresh failed', status: response.status },
@@ -570,7 +585,7 @@ export const authApi = {
   // Uses new endpoint: POST /v1/me/password
   async changePassword(data: { oldPassword?: string; newPassword?: string; currentPassword?: string }): Promise<ApiResponse<void>> {
     console.log('API: changePassword called with data:', JSON.stringify(data));
-    
+
     const password = data.oldPassword || data.currentPassword;
     if (!password || !data.newPassword) {
       return {
@@ -578,28 +593,28 @@ export const authApi = {
         error: { title: 'Missing fields', status: 400 },
       };
     }
-    
+
     // New endpoint for profile password change
     const payload = {
       oldPassword: password,
       newPassword: data.newPassword,
     };
     console.log('API: Calling /v1/me/password with:', JSON.stringify(payload));
-    
+
     return apiClient.post<void>('/v1/me/password', payload);
   },
 
   // Get current user
   async getCurrentUser(): Promise<ApiResponse<AuthResponse['user']>> {
     const response = await apiClient.get<AuthResponse['user']>('/v1/auth/me');
-    
+
     if (response.success && response.data) {
       // Normalize avatar URL
       if (response.data.profile) {
         response.data.profile.avatarUrl = getImageUrl(response.data.profile.avatarUrl);
       }
     }
-    
+
     return response;
   },
 
@@ -616,17 +631,17 @@ export const authApi = {
   }): Promise<ApiResponse<AuthResponse['user']>> {
     console.log('API: Updating profile with data:', data);
     console.log('API: Using endpoint: PATCH /v1/me');
-    
+
     try {
       const response = await apiClient.patch<AuthResponse['user']>('/v1/me', data);
-      
+
       if (response.success && response.data) {
         // Normalize avatar URL in response
         if (response.data.profile) {
           response.data.profile.avatarUrl = getImageUrl(response.data.profile.avatarUrl);
         }
       }
-      
+
       console.log('API: Profile update response:', response);
       return response;
     } catch (error) {
@@ -638,176 +653,38 @@ export const authApi = {
     }
   },
 
-  // Get trending/featured contests
-  // Backend endpoint: GET /v1/contests/trending
-  // Backend returns: { items: [...], nextCursor: null } instead of direct array
-  async getTrendingContests(): Promise<ApiResponse<{ items: Array<{
-    id: string;
-    title: string;
-    reward: string;
-    endDate: string;
-    participantCount: number;
-    coverImageUrl?: string;
-    category?: string;
-    isActive: boolean;
-  }>, nextCursor?: string | null }>> {
-    try {
-      console.log('API: Fetching trending contests');
-      // Fetch raw MongoDB data from backend
-      const response = await apiClient.get<{ items: Array<{
-        _id: string;
-        title: string;
-        prizeDescription: string;
-        endsAt: string;
-        stats?: { participantCount?: number };
-        coverImageUrl?: string;
-        type?: string;
-        status: string;
-      }>, nextCursor?: string | null }>('/v1/contests/trending');
-      
-      // Transform MongoDB data to frontend format
-      if (response.success && response.data?.items) {
-        const transformedItems = response.data.items.map(item => ({
-          id: item._id?.toString() || '',
-          title: item.title,
-          reward: item.prizeDescription || '',
-          endDate: item.endsAt,
-          participantCount: item.stats?.participantCount || 0,
-          coverImageUrl: getImageUrl(item.coverImageUrl),
-          category: item.type || 'Featured',
-          isActive: item.status === 'active',
-        }));
-        
-        return {
-          success: true,
-          data: {
-            items: transformedItems,
-            nextCursor: response.data.nextCursor,
-          },
-        };
-      }
-      
-      // Return error or empty response with correct type
-      if (!response.success) {
-        return {
-          success: false,
-          error: response.error || { title: 'Failed to fetch trending contests', status: 500 },
-        };
-      }
-      
-      return {
-        success: true,
-        data: { items: [], nextCursor: null },
-      };
-    } catch (error) {
-      console.log('API: Error fetching trending contests:', error);
-      return {
-        success: false,
-        error: { title: 'Failed to fetch trending contests', status: 500 },
-      };
-    }
-  },
-
-  // Get nearby contests
-  async getNearbyContests(lat?: number, lng?: number): Promise<ApiResponse<{ items: Array<{
-    id: string;
-    title: string;
-    reward: string;
-    endDate: string;
-    participantCount: number;
-    coverImageUrl?: string;
-    location?: string;
-    isActive: boolean;
-  }>, nextCursor?: string | null }>> {
-    try {
-      console.log('API: Fetching nearby contests', lat && lng ? `with location: ${lat}, ${lng}` : '(no location provided)');
-      // Build URL with location params if provided
-      let url = '/v1/contests/nearby';
-      if (lat !== undefined && lng !== undefined) {
-        url += `?lat=${lat}&lng=${lng}`;
-      }
-      // Fetch raw MongoDB data from backend
-      const response = await apiClient.get<{ items: Array<{
-        _id: string;
-        title: string;
-        prizeDescription: string;
-        endsAt: string;
-        stats?: { participantCount?: number };
-        coverImageUrl?: string;
-        addressLabel?: string;
-        status: string;
-      }>, nextCursor?: string | null }>(url);
-      
-      // Transform MongoDB data to frontend format
-      if (response.success && response.data?.items) {
-        const transformedItems = response.data.items.map(item => ({
-          id: item._id?.toString() || '',
-          title: item.title,
-          reward: item.prizeDescription || '',
-          endDate: item.endsAt,
-          participantCount: item.stats?.participantCount || 0,
-          coverImageUrl: getImageUrl(item.coverImageUrl),
-          location: item.addressLabel || 'Nearby',
-          isActive: item.status === 'active',
-        }));
-        
-        return {
-          success: true,
-          data: {
-            items: transformedItems,
-            nextCursor: response.data.nextCursor,
-          },
-        };
-      }
-      
-      // Return error or empty response with correct type
-      if (!response.success) {
-        return {
-          success: false,
-          error: response.error || { title: 'Failed to fetch nearby contests', status: 500 },
-        };
-      }
-      
-      return {
-        success: true,
-        data: { items: [], nextCursor: null },
-      };
-    } catch (error) {
-      console.log('API: Error fetching nearby contests:', error);
-      return {
-        success: false,
-        error: { title: 'Failed to fetch nearby contests', status: 500 },
-      };
-    }
-  },
 
   // Get user's activities
   // Backend endpoint: GET /v1/me/activities
   // Backend returns: { items: [...], nextCursor: null } instead of direct array
-  async getMyActivities(): Promise<ApiResponse<{ items: Array<{
-    id: string;
-    contestId: string;
-    contestTitle: string;
-    reward: string;
-    endDate: string;
-    participantCount: number;
-    status: 'active' | 'submitted' | 'in_progress' | 'completed';
-    coverImageUrl?: string;
-  }>, nextCursor?: string | null }>> {
+  async getMyActivities(): Promise<ApiResponse<{
+    items: Array<{
+      id: string;
+      contestId: string;
+      contestTitle: string;
+      reward: string;
+      endDate: string;
+      participantCount: number;
+      status: 'active' | 'submitted' | 'in_progress' | 'completed';
+      coverImageUrl?: string;
+    }>, nextCursor?: string | null
+  }>> {
     try {
       console.log('API: Fetching my activities');
       // Fetch raw MongoDB data from backend
-      const response = await apiClient.get<{ items: Array<{
-        _id: string;
-        contestId: string;
-        contestTitle: string;
-        prizeDescription: string;
-        endsAt: string;
-        stats?: { participantCount?: number };
-        status: 'active' | 'submitted' | 'in_progress' | 'completed';
-        coverImageUrl?: string;
-      }>, nextCursor?: string | null }>('/v1/me/activities');
-      
+      const response = await apiClient.get<{
+        items: Array<{
+          _id: string;
+          contestId: string;
+          contestTitle: string;
+          prizeDescription: string;
+          endsAt: string;
+          stats?: { participantCount?: number };
+          status: 'active' | 'submitted' | 'in_progress' | 'completed';
+          coverImageUrl?: string;
+        }>, nextCursor?: string | null
+      }>('/v1/me/activities');
+
       // Transform MongoDB data to frontend format
       if (response.success && response.data?.items) {
         const transformedItems = response.data.items.map(item => ({
@@ -820,7 +697,7 @@ export const authApi = {
           status: item.status,
           coverImageUrl: getImageUrl(item.coverImageUrl),
         }));
-        
+
         return {
           success: true,
           data: {
@@ -829,7 +706,7 @@ export const authApi = {
           },
         };
       }
-      
+
       // Return error or empty response with correct type
       if (!response.success) {
         return {
@@ -837,7 +714,7 @@ export const authApi = {
           error: response.error || { title: 'Failed to fetch activities', status: 500 },
         };
       }
-      
+
       return {
         success: true,
         data: { items: [], nextCursor: null },
@@ -887,7 +764,7 @@ export const authApi = {
   }>> {
     try {
       console.log('API: Fetching contest by ID:', contestId);
-      
+
       // Fetch raw MongoDB data from backend
       const response = await apiClient.get<{
         _id: string;
@@ -917,11 +794,11 @@ export const authApi = {
           required: boolean;
         }>;
       }>(`/v1/contests/${contestId}`);
-      
+
       // Transform MongoDB data to frontend format
       if (response.success && response.data) {
         const item = response.data;
-        
+
         return {
           success: true,
           data: {
@@ -952,7 +829,7 @@ export const authApi = {
           },
         };
       }
-      
+
       return {
         success: false,
         error: response.error || { title: 'Failed to fetch contest details', status: 500 },
@@ -971,7 +848,7 @@ export const authApi = {
   // Handles token refresh on 401 errors
   async uploadAvatar(imageUri: string): Promise<ApiResponse<{ avatarUrl: string }>> {
     // Use apiClient's protected method for token refresh
-    
+
     const attemptUpload = async (token: string | null): Promise<ApiResponse<{ avatarUrl: string }>> => {
       return new Promise((resolve) => {
         // Ensure proper file URI format for React Native
@@ -979,12 +856,12 @@ export const authApi = {
         if (Platform.OS === 'android' && !imageUri.startsWith('file://')) {
           fileUri = `file://${imageUri}`;
         }
-        
+
         // Get filename and create form data
         const filename = imageUri.split('/').pop() || 'avatar.jpg';
         const match = /\.\w+$/.exec(filename);
         const type = match ? `image/${match[0].substring(1)}` : 'image/jpeg';
-        
+
         const formData = new FormData();
         formData.append('avatar', {
           uri: fileUri,
@@ -993,12 +870,12 @@ export const authApi = {
         } as any);
 
         const uploadUrl = `${API_BASE_URL}/v1/upload/avatar`;
-        
+
         const xhr = new XMLHttpRequest();
-        
+
         xhr.onload = () => {
           console.log('API: Upload response status:', xhr.status);
-          
+
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const data = JSON.parse(xhr.responseText);
@@ -1024,14 +901,14 @@ export const authApi = {
             }
           }
         };
-        
+
         xhr.onerror = () => {
           resolve({
             success: false,
             error: { title: 'Network error - check server connection', status: 0 },
           });
         };
-        
+
         xhr.timeout = 30000;
         xhr.ontimeout = () => {
           resolve({
@@ -1039,7 +916,7 @@ export const authApi = {
             error: { title: 'Upload timeout - server may be slow', status: 0 },
           });
         };
-        
+
         xhr.open('POST', uploadUrl);
         xhr.setRequestHeader('Authorization', `Bearer ${token || ''}`);
         xhr.send(formData);
@@ -1048,19 +925,19 @@ export const authApi = {
 
     try {
       console.log('API: Uploading avatar to backend:', imageUri);
-      
+
       // Get current token
       let token = await SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       console.log('API: Token exists:', !!token);
-      
+
       // First attempt
       let response = await attemptUpload(token);
-      
+
       // If 401, try to refresh token and retry once
       if (!response.success && response.error?.status === 401) {
         console.log('API: Got 401, attempting token refresh...');
         const refreshSuccess = await apiClient.refreshToken();
-        
+
         if (refreshSuccess) {
           console.log('API: Token refreshed, retrying upload...');
           token = await SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
@@ -1069,7 +946,7 @@ export const authApi = {
           console.log('API: Token refresh failed');
         }
       }
-      
+
       return response;
     } catch (error: any) {
       console.log('API: Avatar upload error:', error);
@@ -1111,7 +988,7 @@ export const authApi = {
     try {
       console.log('API: Creating submission for contest:', contestId);
       console.log('API: Submission data:', JSON.stringify(data, null, 2));
-      
+
       const response = await apiClient.post<{
         _id: string;
         contestId: string;
@@ -1126,7 +1003,7 @@ export const authApi = {
         }>;
         createdAt: string;
       }>(`/v1/contests/${contestId}/submissions`, data);
-      
+
       console.log('API: Submission response:', JSON.stringify(response, null, 2));
       return response;
     } catch (error: any) {
@@ -1172,7 +1049,7 @@ export const authApi = {
           required: boolean;
         }>;
       }>(`/v1/contests/${contestId}`);
-      
+
       if (response.success && response.data) {
         return {
           success: true,
@@ -1192,7 +1069,7 @@ export const authApi = {
           },
         };
       }
-      
+
       return {
         success: false,
         error: response.error || { title: 'Failed to fetch contest', status: 500 },
@@ -1256,7 +1133,7 @@ export const authApi = {
         nextCursor?: string | null;
       }>('/v1/me/submissions');
       console.log('API: My submissions response:', response);
-      
+
       if (response.success && response.data?.items) {
         response.data.items.forEach(item => {
           if (item.contestId) {
@@ -1264,7 +1141,7 @@ export const authApi = {
           }
         });
       }
-      
+
       return response;
     } catch (error: any) {
       console.log('API: Error fetching my submissions:', error);
@@ -1274,7 +1151,7 @@ export const authApi = {
       };
     }
   },
-  
+
   // Get calendar events
   // Backend endpoint: GET /v1/contests/calendar
   async getCalendarEvents(): Promise<ApiResponse<CalendarEvent[]>> {
@@ -1305,8 +1182,53 @@ export const authApi = {
     }
   },
 
-// Get tokens from storage
-async getTokens(): Promise<{ accessToken: string | null; refreshToken: string | null }> {
-  return apiClient.getTokens();
-},
+  // Get tokens from storage
+  async getTokens(): Promise<{ accessToken: string | null; refreshToken: string | null }> {
+    return apiClient.getTokens();
+  },
+
+  // Get trending/featured contests
+  async getTrendingContests(limit = 10): Promise<ApiResponse<{ items: Contest[] }>> {
+    try {
+      console.log('API: Fetching trending contests');
+      const response = await apiClient.get<{ items: Contest[] }>(`/v1/contests/trending?limit=${limit}`);
+      if (response.success && response.data?.items) {
+        response.data.items.forEach(c => c.coverImageUrl = getImageUrl(c.coverImageUrl));
+      }
+      return response;
+    } catch (error) {
+      console.log('API: Error fetching trending contests:', error);
+      return { success: false, error: { title: 'Failed to fetch trending contests', status: 500 } };
+    }
+  },
+
+  // Get nearby contests
+  async getNearbyContests(lat: number, lng: number, radiusKm = 50): Promise<ApiResponse<{ items: Contest[] }>> {
+    try {
+      console.log(`API: Fetching nearby contests (lat: ${lat}, lng: ${lng})`);
+      const response = await apiClient.get<{ items: Contest[] }>(`/v1/contests/nearby?lat=${lat}&lng=${lng}&radiusKm=${radiusKm}`);
+      if (response.success && response.data?.items) {
+        response.data.items.forEach(c => c.coverImageUrl = getImageUrl(c.coverImageUrl));
+      }
+      return response;
+    } catch (error) {
+      console.log('API: Error fetching nearby contests:', error);
+      return { success: false, error: { title: 'Failed to fetch nearby contests', status: 500 } };
+    }
+  },
+
+  // Get all contests
+  async getContests(limit = 20): Promise<ApiResponse<{ items: Contest[] }>> {
+    try {
+      console.log('API: Fetching all contests');
+      const response = await apiClient.get<{ items: Contest[] }>(`/v1/contests?status=active&limit=${limit}`);
+      if (response.success && response.data?.items) {
+        response.data.items.forEach(c => c.coverImageUrl = getImageUrl(c.coverImageUrl));
+      }
+      return response;
+    } catch (error) {
+      console.log('API: Error fetching contests:', error);
+      return { success: false, error: { title: 'Failed to fetch contests', status: 500 } };
+    }
+  },
 };

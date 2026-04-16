@@ -1,17 +1,23 @@
-import { useLocalSearchParams } from "expo-router";
-import React, { useMemo } from "react";
+import * as Location from "expo-location";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
-    FlatList,
-    ImageSourcePropType,
-    ListRenderItem,
-    StyleSheet,
-    View
+  ActivityIndicator,
+  FlatList,
+  ImageSourcePropType,
+  ListRenderItem,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ContestCard from "../components/ContestCard";
+import EmptyState from "../components/EmptyState";
 import Header from "../components/Header";
+import { authApi, Contest } from "../services/api";
 
-type Contest = {
+type LocalContest = {
   id: string;
   title: string;
   reward: string;
@@ -23,82 +29,73 @@ type Contest = {
   section?: "featured" | "nearby" | "all";
 };
 
-const MOCK_CONTESTS: Contest[] = [
-  {
-    id: "f-1",
-    title: "Premium Gaming Setup Giveaway",
-    reward: "$2,500 Gaming PC + Accessories",
-    date: "Ends Feb 28, 2026",
-    joined: "1,145",
-    image:
-      "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1200&auto=format&fit=crop",
-    badge: "Giveaway",
-    isActive: true,
-    section: "featured",
-  },
-  {
-    id: "f-2",
-    title: "Landscape Photo Challenge",
-    reward: "$500 Amazon Voucher",
-    date: "Ends Mar 5, 2026",
-    joined: "842",
-    image:
-      "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1200&auto=format&fit=crop",
-    badge: "Sponsored",
-    isActive: true,
-    section: "featured",
-  },
-  {
-    id: "n-1",
-    title: "City Street Photo Walk",
-    reward: "$250 Local Gift Card",
-    date: "Apr 02, 2026",
-    joined: "230",
-    image:
-      "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=1200&auto=format&fit=crop",
-    badge: "Nearby",
-    isActive: true,
-    section: "nearby",
-  },
-  {
-    id: "n-2",
-    title: "Community Art Sprint",
-    reward: "$300 Cash",
-    date: "Apr 10, 2026",
-    joined: "98",
-    image:
-      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1200&auto=format&fit=crop",
-    badge: "Local",
-    isActive: true,
-    section: "nearby",
-  },
-  {
-    id: "a-1",
-    title: "Minimal Logo Design Contest",
-    reward: "$1,000 Cash Prize",
-    date: "Ends Mar 20, 2026",
-    joined: "420",
-    image:
-      "https://images.unsplash.com/photo-1498050108023-c5249f4df085?q=80&w=1200&auto=format&fit=crop",
-    badge: "Design",
-    isActive: false,
-    section: "all",
-  },
-];
-
 const AllContests = () => {
-  const params = useLocalSearchParams();
-  const section = (params.section as string) || "all";
+  const { section = "all" } = useLocalSearchParams<{ section: "featured" | "nearby" | "all" }>();
+  const [contests, setContests] = useState<LocalContest[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
-  const data = useMemo(() => {
-    if (section === "featured")
-      return MOCK_CONTESTS.filter((c) => c.section === "featured");
-    if (section === "nearby")
-      return MOCK_CONTESTS.filter((c) => c.section === "nearby");
-    return MOCK_CONTESTS;
+  const fetchContests = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      let response;
+      if (section === "featured") {
+        response = await authApi.getTrendingContests();
+      } else if (section === "nearby") {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setLocationError('Permission to access location was denied');
+          setIsLoading(false);
+          return;
+        }
+        const location = await Location.getCurrentPositionAsync({});
+        response = await authApi.getNearbyContests(location.coords.latitude, location.coords.longitude);
+      } else {
+        response = await authApi.getContests();
+      }
+
+      if (response.success && response.data?.items) {
+        const mappedData: LocalContest[] = response.data.items.map((c: Contest) => ({
+          id: c._id,
+          title: c.title,
+          reward: c.prizeDescription || "Trophy / Reward",
+          date: c.endsAt ? `Ends ${new Date(c.endsAt).toLocaleDateString()}` : "Active",
+          joined: c.stats?.participantCount?.toLocaleString() || "0",
+          image: c.coverImageUrl || "https://images.unsplash.com/photo-1511512578047-dfb367046420",
+          badge: c.status === "active" ? (c.type === "SUBMISSION_VOTING" ? "Voting" : "Active") : c.status,
+          isActive: c.status === "active",
+        }));
+        setContests(mappedData);
+        setLocationError(null);
+      }
+    } catch (error) {
+      console.log("Error fetching contests:", error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
   }, [section]);
 
-  const renderItem: ListRenderItem<Contest> = ({ item }) => (
+  useFocusEffect(
+    useCallback(() => {
+      fetchContests();
+    }, [fetchContests])
+  );
+
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    fetchContests(false);
+  };
+
+  const handlePress = (id: string) => {
+    router.push({
+      pathname: "/contest-detail",
+      params: { contestId: id }
+    });
+  };
+
+  const renderItem: ListRenderItem<LocalContest> = ({ item }) => (
     <View style={styles.cardWrapper}>
       <ContestCard
         type="full"
@@ -109,7 +106,7 @@ const AllContests = () => {
         imageSource={{ uri: item.image } as ImageSourcePropType}
         badgeText={item.badge}
         isActive={item.isActive}
-        onPress={() => {}}
+        onPress={() => handlePress(item.id)}
       />
     </View>
   );
@@ -125,13 +122,58 @@ const AllContests = () => {
               : "All Contests"
         }
       />
-      <FlatList
-        data={data}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-      />
+
+      {isLoading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color="#990009" />
+          <Text style={{ marginTop: 10, color: "#667085" }}>Loading contests...</Text>
+        </View>
+      ) : locationError ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 20 }}>
+          <Text style={{ fontSize: 16, color: "#667085", textAlign: "center" }}>{locationError}</Text>
+          <Text style={{ fontSize: 14, color: "#98A2B3", marginTop: 8, textAlign: "center" }}>
+            Enable location in your settings to see contests near you.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={contests}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={["#990009"]} />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon={
+                section === "featured"
+                  ? "star-outline"
+                  : section === "nearby"
+                    ? "map-outline"
+                    : "search-outline"
+              }
+              title={
+                section === "featured"
+                  ? "No Featured Contests"
+                  : section === "nearby"
+                    ? "No Contests Nearby"
+                    : "No Contests Found"
+              }
+              message={
+                section === "featured"
+                  ? "We're currently selecting our next batch of premium contests. Check back soon!"
+                  : section === "nearby"
+                    ? "It looks like there aren't any active contests in your area right now. Try expanding your search!"
+                    : "We couldn't find any contests matching your criteria. Try a different filter!"
+              }
+              buttonText={section !== "all" ? "View All Contests" : undefined}
+              onButtonPress={() => router.push({ pathname: "/" })}
+            />
+          }
+        />
+      )}
     </SafeAreaView>
   );
 };
