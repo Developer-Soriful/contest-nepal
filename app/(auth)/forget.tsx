@@ -35,12 +35,17 @@ export default function ForgotPassword() {
       
       if (response.success) {
         Alert.alert(
-          "Reset Email Sent", 
-          "Please check your email for password reset instructions.",
+          "Reset Email Sent",
+          "We've sent a 6-digit verification code to your email. Please check and enter it on the next screen.",
           [
             {
-              text: "OK",
-              onPress: () => router.back()
+              text: "Continue",
+              onPress: () => {
+                router.push({
+                  pathname: "/verify-otp",
+                  params: { email: emailOrPhone.trim() }
+                });
+              }
             }
           ]
         );

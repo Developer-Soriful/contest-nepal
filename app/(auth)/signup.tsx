@@ -40,8 +40,8 @@ export default function Signup() {
       return;
     }
     
-    if (password.length < 8) {
-      Alert.alert("Error", "Password must be at least 8 characters long");
+    if (password.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters long");
       return;
     }
     
@@ -67,7 +67,10 @@ export default function Signup() {
           [
             {
               text: "OK",
-              onPress: () => router.replace("/verify-email")
+              onPress: () => router.replace({
+                pathname: "/verify-email",
+                params: { email: email.trim() }
+              })
             }
           ]
         );

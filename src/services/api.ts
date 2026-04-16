@@ -5,6 +5,26 @@ import SafeAsyncStorage from '../lib/SafeAsyncStorage';
 // API Configuration
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 
+/**
+ * Normalizes an image path from the backend into a full URL.
+ * Handles both full URLs (like Cloudinary) and relative paths (legacy local storage).
+ */
+const getImageUrl = (path: string | null | undefined): string => {
+  if (!path || path.trim() === "") {
+    // Default placeholder for missing images
+    return "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=500";
+  }
+  
+  // If it's already an absolute URL (Cloudinary, S3, etc.), return as-is
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  
+  // Ensure we don't duplicate slashes
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+};
+
 // Storage Keys
 const STORAGE_KEYS = {
   ACCESS_TOKEN: 'access_token',
@@ -51,7 +71,8 @@ export interface AuthResponse {
     accessToken: string;
     refreshToken: string;
     expiresIn?: number;
-  };
+  } | null;
+  emailVerificationRequired?: boolean;
 }
 
 // Request Schemas (matching backend)
@@ -87,13 +108,26 @@ const verifyOtpSchema = z.object({
 });
 
 const resetPasswordSchema = z.object({
-  verificationToken: z.string().min(10),
-  newPassword: z.string().min(8).max(128),
+  verificationToken: z.string().min(6).optional(),
+  newPassword: z.string().min(6).max(128),
+  email: z.string().email().toLowerCase().trim().optional(),
+  phone: z.string().optional(),
+  code: z.string().regex(/^\d{6}$/).optional(),
+}).refine((data) => {
+  // Either verificationToken OR (code AND (email OR phone)) must be provided
+  if (data.verificationToken) return true;
+  if (data.code && (data.email || data.phone)) return true;
+  return false;
+}, {
+  message: "Either verificationToken or (code with email/phone) is required",
 });
 
 const changePasswordSchema = z.object({
-  oldPassword: z.string().min(1).max(128),
-  newPassword: z.string().min(8).max(128),
+  oldPassword: z.string().min(1).max(128).optional(),
+  currentPassword: z.string().min(1).max(128).optional(),
+  newPassword: z.string().min(6).max(128),
+}).refine((data) => data.oldPassword || data.currentPassword, {
+  message: "Either oldPassword or currentPassword is required",
 });
 
 const verifyEmailSchema = z.union([
@@ -114,6 +148,16 @@ export type VerifyOtpRequest = z.infer<typeof verifyOtpSchema>;
 export type ResetPasswordRequest = z.infer<typeof resetPasswordSchema>;
 export type ChangePasswordRequest = z.infer<typeof changePasswordSchema>;
 export type VerifyEmailRequest = z.infer<typeof verifyEmailSchema>;
+
+export interface CalendarEvent {
+  _id: string;
+  id?: string;
+  title: string;
+  type: string;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+}
 
 // HTTP Client with token management
 class ApiClient {
@@ -355,7 +399,15 @@ export const authApi = {
     const response = await apiClient.post<AuthResponse>('/v1/auth/register', validatedData);
     
     if (response.success && response.data) {
-      await apiClient.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken);
+      // Only set tokens if they exist (email verification not required)
+      if (response.data.tokens) {
+        await apiClient.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken);
+      }
+      // Normalize avatar URL
+      if (response.data.user?.profile) {
+        response.data.user.profile.avatarUrl = getImageUrl(response.data.user.profile.avatarUrl);
+      }
+      // Always save user data (needed for verification screen)
       await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user));
     }
     
@@ -374,7 +426,13 @@ export const authApi = {
       console.log('Refresh token exists:', !!response.data.tokens?.refreshToken);
       
       // Store tokens
-      await apiClient.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken);
+      await apiClient.setTokens(response.data.tokens?.accessToken || '', response.data.tokens?.refreshToken || '');
+      
+      // Normalize avatar URL
+      if (response.data.user?.profile) {
+        response.data.user.profile.avatarUrl = getImageUrl(response.data.user.profile.avatarUrl);
+      }
+      
       await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user));
       
       // Force flush to ensure data persists
@@ -521,7 +579,16 @@ export const authApi = {
 
   // Get current user
   async getCurrentUser(): Promise<ApiResponse<AuthResponse['user']>> {
-    return apiClient.get<AuthResponse['user']>('/v1/auth/me');
+    const response = await apiClient.get<AuthResponse['user']>('/v1/auth/me');
+    
+    if (response.success && response.data) {
+      // Normalize avatar URL
+      if (response.data.profile) {
+        response.data.profile.avatarUrl = getImageUrl(response.data.profile.avatarUrl);
+      }
+    }
+    
+    return response;
   },
 
   // Update user profile (name, phone, bio, location, locale)
@@ -540,6 +607,14 @@ export const authApi = {
     
     try {
       const response = await apiClient.patch<AuthResponse['user']>('/v1/me', data);
+      
+      if (response.success && response.data) {
+        // Normalize avatar URL in response
+        if (response.data.profile) {
+          response.data.profile.avatarUrl = getImageUrl(response.data.profile.avatarUrl);
+        }
+      }
+      
       console.log('API: Profile update response:', response);
       return response;
     } catch (error) {
@@ -586,7 +661,7 @@ export const authApi = {
           reward: item.prizeDescription || '',
           endDate: item.endsAt,
           participantCount: item.stats?.participantCount || 0,
-          coverImageUrl: item.coverImageUrl,
+          coverImageUrl: getImageUrl(item.coverImageUrl),
           category: item.type || 'Featured',
           isActive: item.status === 'active',
         }));
@@ -659,7 +734,7 @@ export const authApi = {
           reward: item.prizeDescription || '',
           endDate: item.endsAt,
           participantCount: item.stats?.participantCount || 0,
-          coverImageUrl: item.coverImageUrl,
+          coverImageUrl: getImageUrl(item.coverImageUrl),
           location: item.addressLabel || 'Nearby',
           isActive: item.status === 'active',
         }));
@@ -731,7 +806,7 @@ export const authApi = {
           endDate: item.endsAt,
           participantCount: item.stats?.participantCount || 0,
           status: item.status,
-          coverImageUrl: item.coverImageUrl,
+          coverImageUrl: getImageUrl(item.coverImageUrl),
         }));
         
         return {
@@ -843,7 +918,7 @@ export const authApi = {
             description: item.description || '',
             rules: item.rules || '',
             reward: item.prizeDescription || '',
-            coverImageUrl: item.coverImageUrl || '',
+            coverImageUrl: getImageUrl(item.coverImageUrl),
             startDate: item.startsAt,
             endDate: item.endsAt,
             status: item.status,
@@ -1094,7 +1169,7 @@ export const authApi = {
             title: response.data.title,
             description: response.data.description || '',
             reward: response.data.prizeDescription || '',
-            coverImageUrl: response.data.coverImageUrl || '',
+            coverImageUrl: getImageUrl(response.data.coverImageUrl),
             endDate: response.data.endsAt,
             tasks: response.data.tasks?.map(t => ({
               id: t._id?.toString() || '',
@@ -1169,6 +1244,15 @@ export const authApi = {
         nextCursor?: string | null;
       }>('/v1/me/submissions');
       console.log('API: My submissions response:', response);
+      
+      if (response.success && response.data?.items) {
+        response.data.items.forEach(item => {
+          if (item.contestId) {
+            item.contestId.coverImageUrl = getImageUrl(item.contestId.coverImageUrl);
+          }
+        });
+      }
+      
       return response;
     } catch (error: any) {
       console.log('API: Error fetching my submissions:', error);
@@ -1178,40 +1262,24 @@ export const authApi = {
       };
     }
   },
-
-  // Create a report
-  // Backend endpoint: POST /v1/reports
-  // Requires authentication
-  async createReport(
-    targetType: 'CONTEST' | 'USER' | 'SUBMISSION' | 'VOTE' | 'Other',
-    targetId: string,
-    reason: string,
-    description?: string
-  ): Promise<ApiResponse<{ message: string; reportId: string }>> {
+  
+  // Get calendar events
+  // Backend endpoint: GET /v1/contests/calendar
+  async getCalendarEvents(): Promise<ApiResponse<CalendarEvent[]>> {
     try {
-      console.log('API: Creating report for', targetType, targetId);
-      const response = await apiClient.post<{
-        message: string;
-        reportId: string;
-      }>('/v1/reports', {
-        targetType,
-        targetId,
-        reason,
-        description,
-      });
-      console.log('API: Report created:', response);
-      return response;
-    } catch (error: any) {
-      console.log('API: Error creating report:', error);
+      console.log('API: Fetching calendar events');
+      return await apiClient.get<CalendarEvent[]>('/v1/contests/calendar');
+    } catch (error) {
+      console.log('API: Error fetching calendar events:', error);
       return {
         success: false,
-        error: { title: 'Failed to submit report', status: error?.response?.status || 500 },
+        error: { title: 'Failed to fetch calendar events', status: 500 },
       };
     }
   },
 
-  // Get tokens from storage
-  async getTokens(): Promise<{ accessToken: string | null; refreshToken: string | null }> {
-    return apiClient.getTokens();
-  },
+// Get tokens from storage
+async getTokens(): Promise<{ accessToken: string | null; refreshToken: string | null }> {
+  return apiClient.getTokens();
+},
 };

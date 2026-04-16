@@ -12,9 +12,7 @@ const HomeHeader: React.FC = () => {
 
   // Get real user data from AuthContext
   const userName = user?.profile?.displayName || user?.email?.split('@')[0] || "User";
-  // Fix: Replace localhost with actual IP since backend returns localhost URLs
-  const rawAvatarUrl = user?.profile?.avatarUrl;
-  const avatarUri = rawAvatarUrl?.replace('localhost', '10.10.11.91') || null;
+  const avatarUri = user?.profile?.avatarUrl || null;
 
   // Listen for user update events from AuthContext
   useEffect(() => {

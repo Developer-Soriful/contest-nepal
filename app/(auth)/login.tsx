@@ -2,16 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { import_img } from '../../assets/import_img';
@@ -48,11 +48,29 @@ export default function Login() {
         // Login successful, navigate to tabs
         router.replace("/(tabs)" as any);
       } else {
-        // Show error message
-        Alert.alert(
-          "Login Failed", 
-          response.error?.title || "An error occurred during login"
-        );
+        // Check if email verification is required
+        if (response.error?.code === "UNVERIFIED_EMAIL") {
+          Alert.alert(
+            "Email Not Verified",
+            "Please verify your email before logging in. A new verification code has been sent to your email.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { 
+                text: "Verify Email", 
+                onPress: () => router.push({
+                  pathname: "/verify-email",
+                  params: { email: email.trim() }
+                })
+              }
+            ]
+          );
+        } else {
+          // Show generic error message
+          Alert.alert(
+            "Login Failed", 
+            response.error?.title || "An error occurred during login"
+          );
+        }
       }
     } catch (error) {
       console.log("Login error:", error);

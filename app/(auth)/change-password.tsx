@@ -38,6 +38,11 @@ export default function ChangePassword() {
             return;
         }
 
+        if (newPassword.length < 6) {
+            Alert.alert("Error", "New password must be at least 6 characters");
+            return;
+        }
+
         setIsLoading(true);
         
         try {

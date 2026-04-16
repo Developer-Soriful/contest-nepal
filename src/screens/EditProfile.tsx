@@ -214,7 +214,7 @@ const EditProfile = () => {
                                 <Image
                                     key={selectedImage || user?.profile?.avatarUrl} // Force re-render when avatar changes
                                     source={{
-                                        uri: selectedImage || user?.profile?.avatarUrl?.replace('localhost', '10.10.11.91')
+                                        uri: selectedImage || user?.profile?.avatarUrl
                                     }}
                                     style={styles.avatar}
                                     onError={() => setAvatarError(true)}

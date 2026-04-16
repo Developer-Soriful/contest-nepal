@@ -1,9 +1,9 @@
-import Header from "@/src/components/Header";
-import PromotionalBanner from "@/src/components/PromotionalBanner";
-import SectionHeader from "@/src/components/SectionHeader";
+import { authApi, CalendarEvent } from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,71 +12,114 @@ import {
 } from "react-native";
 import { Calendar } from "react-native-calendars";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Header from "../components/Header";
+import PromotionalBanner from "../components/PromotionalBanner";
+import SectionHeader from "../components/SectionHeader";
 
 const CalendarScreen = () => {
   const [selected, setSelected] = useState(
     new Date().toISOString().split("T")[0],
   );
+  const [apiEvents, setApiEvents] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Mock events
-  const events = [
-    {
-      id: 1,
-      title: "Photography Contest",
-      time: "10:00 AM",
-      category: "Photography",
-      color: "#FF7BA9",
-    },
-    {
-      id: 2,
-      title: "Gaming Setup Giveaway",
-      time: "02:00 PM",
-      category: "Gaming",
-      color: "#918EF4",
-    },
-    {
-      id: 3,
-      title: "UI/UX Design Challenge",
-      time: "05:00 PM",
-      category: "Design",
-      color: "#00C853",
-    },
-    {
-      id: 4,
-      title: "Wildlife Photo Contest",
-      time: "09:00 AM",
-      category: "Photography",
-      color: "#FFD700",
-    },
-    {
-      id: 5,
-      title: "App Innovation Awards",
-      time: "11:30 AM",
-      category: "Dev",
-      color: "#4A90E2",
-    },
-    {
-      id: 6,
-      title: "Retro Gaming Night",
-      time: "08:00 PM",
-      category: "Gaming",
-      color: "#990009",
-    },
-  ];
+  // Auto-refresh data when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[CalendarScreen] Screen focused - refreshing events');
+      loadEvents();
+    }, [])
+  );
 
-  // Marked dates for the calendar
-  const markedDates = {
-    [selected]: {
-      selected: true,
-      disableTouchEvent: true,
-      selectedColor: "#A30000",
-      selectedTextColor: "#FFFFFF",
-    },
-    "2026-03-05": { marked: true, dotColor: "#FF7BA9" },
-    "2026-03-12": { marked: true, dotColor: "#918EF4" },
-    "2026-03-18": { marked: true, dotColor: "#00C853" },
-    "2026-03-26": { marked: true, dotColor: "#A30000" },
+  const loadEvents = async () => {
+    setIsLoading(true);
+    try {
+      const response = await authApi.getCalendarEvents();
+      if (response.success && response.data) {
+        setApiEvents(response.data);
+      }
+    } catch (error) {
+      console.log('Error loading calendar events:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handleEventPress = (event: CalendarEvent) => {
+    if (!event._id) {
+      console.warn('[CalendarScreen] Event ID missing, cannot navigate');
+      return;
+    }
+    router.push({
+      pathname: "/contest-detail",
+      params: { contestId: event._id }
+    });
+  };
+
+  // Helper to get category color
+  const getCategoryColor = (type: string) => {
+    switch (type?.toUpperCase()) {
+      case 'POLL': return "#918EF4";
+      case 'GIVEAWAY': return "#FF7BA9";
+      case 'SUBMISSION_VOTING': return "#00C853";
+      default: return "#4A90E2";
+    }
+  };
+
+  // Generate marked dates for the calendar dots
+  const getMarkedDates = () => {
+    const marks: any = {
+      [selected]: {
+        selected: true,
+        selectedColor: "#A30000",
+        selectedTextColor: "#FFFFFF",
+      },
+    };
+
+    apiEvents.forEach(event => {
+      if (event.startsAt) {
+        const startDay = event.startsAt.split('T')[0];
+        if (!marks[startDay]) {
+          marks[startDay] = { marked: true, dotColor: "#918EF4" };
+        } else {
+          marks[startDay] = { ...marks[startDay], marked: true };
+        }
+      }
+
+      if (event.endsAt) {
+        const endDay = event.endsAt.split('T')[0];
+        if (!marks[endDay]) {
+          marks[endDay] = { marked: true, dotColor: "#A30000" };
+        } else {
+          marks[endDay] = { ...marks[endDay], marked: true };
+        }
+      }
+    });
+
+    return marks;
+  };
+
+  // Filter events for the selected date
+  const selectedDayEvents = apiEvents.filter(event => {
+    const startDay = event.startsAt?.split('T')[0];
+    const endDay = event.endsAt?.split('T')[0];
+    return selected === startDay || selected === endDay;
+  });
+
+  // Get truly upcoming events (starting from today onwards, sorted by date)
+  const allUpcomingEvents = [...apiEvents]
+    .filter(event => {
+      if (!event.startsAt) return false;
+      const today = new Date().toISOString().split('T')[0];
+      const startDay = event.startsAt.split('T')[0];
+      const endDay = event.endsAt?.split('T')[0];
+      return startDay >= today || (endDay && endDay >= today);
+    })
+    .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())
+    .slice(0, 5);
+
+  const eventsToDisplay = selectedDayEvents.length > 0 ? selectedDayEvents : allUpcomingEvents;
+  const isShowingUpcoming = selectedDayEvents.length === 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -91,7 +134,7 @@ const CalendarScreen = () => {
             onDayPress={(day: any) => {
               setSelected(day.dateString);
             }}
-            markedDates={markedDates}
+            markedDates={getMarkedDates()}
             theme={{
               backgroundColor: "#ffffff",
               calendarBackground: "#ffffff",
@@ -121,39 +164,60 @@ const CalendarScreen = () => {
           />
         </View>
 
-        {/* Upcoming Events Section */}
+        {/* Dynamic Events Section */}
         <View style={styles.eventsSection}>
           <View style={{ paddingHorizontal: 18 }}>
-            <SectionHeader title="Upcoming Events" showArrow={false} />
+            <SectionHeader
+              title={!isShowingUpcoming ? `Events on ${selected}` : "Upcoming Events"}
+              showArrow={false}
+            />
 
-            {events.map((event) => (
-              <TouchableOpacity key={event.id} style={styles.eventCard}>
-                <View
-                  style={[
-                    styles.eventIndicator,
-                    { backgroundColor: event.color },
-                  ]}
-                />
-                <View style={styles.eventInfo}>
-                  <Text style={styles.eventTitle}>{event.title}</Text>
-                  <View style={styles.eventMeta}>
-                    <View style={styles.metaItem}>
-                      <Ionicons name="time-outline" size={14} color="#666" />
-                      <Text style={styles.metaText}>{event.time}</Text>
-                    </View>
-                    <View style={styles.metaItem}>
-                      <Ionicons
-                        name="pricetag-outline"
-                        size={14}
-                        color="#666"
-                      />
-                      <Text style={styles.metaText}>{event.category}</Text>
+            {isLoading ? (
+              <ActivityIndicator size="large" color="#990009" style={{ marginTop: 20 }} />
+            ) : eventsToDisplay.length > 0 ? (
+              eventsToDisplay.map((event, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.eventCard}
+                  onPress={() => handleEventPress(event)}
+                >
+                  <View
+                    style={[
+                      styles.eventIndicator,
+                      { backgroundColor: getCategoryColor(event.type) },
+                    ]}
+                  />
+                  <View style={styles.eventInfo}>
+                    <Text style={styles.eventTitle}>{event.title}</Text>
+                    <View style={styles.eventMeta}>
+                      <View style={styles.metaItem}>
+                        <Ionicons name="time-outline" size={14} color="#666" />
+                        <Text style={styles.metaText}>
+                          {isShowingUpcoming
+                            ? `Starts: ${event.startsAt?.split('T')[0]}`
+                            : (selected === event.startsAt?.split('T')[0] ? "Starts Today" : "Ends Today")
+                          }
+                        </Text>
+                      </View>
+                      <View style={styles.metaItem}>
+                        <Ionicons
+                          name="pricetag-outline"
+                          size={14}
+                          color="#666"
+                        />
+                        <Text style={styles.metaText}>{event.type}</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#CCC" />
-              </TouchableOpacity>
-            ))}
+                  <Ionicons name="chevron-forward" size={18} color="#CCC" />
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.noEventsContainer}>
+                <Ionicons name="calendar-outline" size={48} color="#CCC" />
+                <Text style={styles.noEventsText}>No upcoming events found</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -231,6 +295,23 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 12,
     color: "#667085",
+  },
+  noEventsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#F2F4F7',
+    borderStyle: 'dashed',
+    marginTop: 10,
+  },
+  noEventsText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#98A2B3',
+    fontWeight: '500',
   },
 });
 

@@ -132,17 +132,12 @@ const ProfileScreen = () => {
 
   // Get real user data from AuthContext
   const { user, logout, isLoading, refreshUser } = useAuth();
-
-  // Build user display data from API response
-  // Fix: Replace localhost with actual IP since backend returns localhost URLs
-  const rawAvatarUrl = user?.profile?.avatarUrl;
-  const avatarUrl = rawAvatarUrl?.replace('localhost', '10.10.11.91') || null;
   
   const userData = {
     name: user?.profile?.displayName || user?.email?.split('@')[0] || "User",
     phone: user?.phone || "No phone number",
     email: user?.email || "",
-    avatar: avatarUrl,
+    avatar: user?.profile?.avatarUrl || null,
     role: user?.role || "participant",
     status: user?.status || "active",
     emailVerified: user?.emailVerified || false,

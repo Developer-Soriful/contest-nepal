@@ -25,8 +25,9 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<ApiResponse<AuthResponse>>;
   register: (data: RegisterRequest) => Promise<ApiResponse<AuthResponse>>;
-  resetPassword: (token: string, newPassword: string) => Promise<ApiResponse<void>>;
+  resetPassword: (tokenOrCode: string, newPassword: string, email?: string, code?: string) => Promise<ApiResponse<void>>;
   forgotPassword: (emailOrPhone: string) => Promise<ApiResponse<void>>;
+  verifyOtp: (email: string, code: string) => Promise<ApiResponse<void>>;
   verifyEmail: (data: {
     email?: string;
     code?: string;
@@ -36,7 +37,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   changePassword: (data: {
-    oldPassword: string;
+    oldPassword?: string;
+    currentPassword?: string;
     newPassword: string;
     token?: string;
   }) => Promise<ApiResponse<void>>;
@@ -192,8 +194,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await authApi.register(data);
 
       if (response.success && response.data) {
-        setUser(response.data.user);
-        // Tokens are already set in authApi.register
+        // Only auto-login if email verification is NOT required
+        if (!response.data.emailVerificationRequired) {
+          setUser(response.data.user);
+        }
+        // If email verification required, user stays logged out
+        // Frontend will redirect to email verification screen
       }
 
       return response;
@@ -244,9 +250,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  const resetPassword = async (token: string, newPassword: string): Promise<ApiResponse<void>> => {
+  const resetPassword = async (
+    tokenOrCode: string, 
+    newPassword: string,
+    email?: string,
+    code?: string
+  ): Promise<ApiResponse<void>> => {
     try {
-      return await authApi.resetPassword({ verificationToken: token, newPassword });
+      // If email and code provided, use OTP flow
+      if (email && code) {
+        return await authApi.resetPassword({
+          newPassword,
+          email,
+          code,
+        });
+      }
+      // Otherwise use JWT token flow
+      return await authApi.resetPassword({
+        verificationToken: tokenOrCode,
+        newPassword,
+      });
     } catch (error) {
       console.log('Reset password error:', error);
       return {
@@ -297,13 +320,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const changePassword = async (data: {
     oldPassword?: string;
+    currentPassword?: string;
     newPassword?: string;
     token?: string;
   }): Promise<ApiResponse<void>> => {
     try {
-      if (data.oldPassword && data.newPassword) {
+      const passwordToUse = data.oldPassword || data.currentPassword;
+      if (passwordToUse && data.newPassword) {
         const response = await authApi.changePassword({
-          oldPassword: data.oldPassword,
+          oldPassword: passwordToUse,
           newPassword: data.newPassword,
         });
         
@@ -416,6 +441,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     register,
     forgotPassword,
+    verifyOtp,
     verifyEmail,
     resendVerificationEmail,
     logout,
