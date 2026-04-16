@@ -159,6 +159,18 @@ export interface CalendarEvent {
   status: string;
 }
 
+export interface UserStats {
+  activity: Array<{ label: string; value: number }>;
+  totalPoints: number;
+  winRate: number;
+  thisWeekCount: number;
+  lastWeekCount: number;
+  percentageChange: number;
+  monthlyGoal: number;
+  monthlyProgress: number;
+  achievements: Array<{ title: string; description: string; icon: string; color: string }>;
+}
+
 // HTTP Client with token management
 class ApiClient {
   private baseURL: string;
@@ -1274,6 +1286,21 @@ export const authApi = {
       return {
         success: false,
         error: { title: 'Failed to fetch calendar events', status: 500 },
+      };
+    }
+  },
+
+  // Get user analytics/stats
+  // Backend endpoint: GET /v1/me/stats
+  async getUserStats(): Promise<ApiResponse<UserStats>> {
+    try {
+      console.log('API: Fetching user stats');
+      return await apiClient.get<UserStats>('/v1/me/stats');
+    } catch (error) {
+      console.log('API: Error fetching user stats:', error);
+      return {
+        success: false,
+        error: { title: 'Failed to fetch analytics', status: 500 },
       };
     }
   },

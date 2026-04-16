@@ -1,28 +1,57 @@
 import Header from "@/src/components/Header";
 import PromotionalBanner from "@/src/components/PromotionalBanner";
 import SectionHeader from "@/src/components/SectionHeader";
+import { authApi, UserStats } from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
-import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
 const GraphScreen = () => {
-  // Mock data for the chart
-  const chartData = [
-    { label: "Mon", value: 45 },
-    { label: "Tue", value: 70 },
-    { label: "Wed", value: 40 },
-    { label: "Thu", value: 90 },
-    { label: "Fri", value: 60 },
-    { label: "Sat", value: 85 },
-    { label: "Sun", value: 55 },
-  ];
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const stats = [
-    { label: "Total Points", value: "1,250", icon: "star", color: "#F59E0B" },
-    { label: "Win Rate", value: "75%", icon: "trophy", color: "#00C853" },
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, [])
+  );
+
+  const fetchStats = async () => {
+    setIsLoading(true);
+    try {
+      const response = await authApi.getUserStats();
+      if (response.success && response.data) {
+        setStats(response.data);
+      }
+    } catch (error) {
+      console.log("Error fetching stats:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper for max value in chart (for percentage scaling)
+  const maxActivityValue = stats?.activity
+    ? Math.max(...stats.activity.map(a => a.value), 5)
+    : 10;
+
+  const displayStats = [
+    {
+      label: "Total Points",
+      value: stats?.totalPoints.toLocaleString() || "0",
+      icon: "star",
+      color: "#F59E0B"
+    },
+    {
+      label: "Win Rate",
+      value: `${stats?.winRate || 0}%`,
+      icon: "trophy",
+      color: "#00C853"
+    },
   ];
 
   return (
@@ -37,100 +66,141 @@ const GraphScreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Stats Cards */}
-        <View style={[styles.statsRow, { paddingHorizontal: 18 }]}>
-          {stats.map((stat, index) => (
-            <View key={index} style={styles.statCard}>
-              <View
-                style={[styles.iconBg, { backgroundColor: stat.color + "20" }]}
-              >
-                <Ionicons
-                  name={stat.icon as any}
-                  size={20}
-                  color={stat.color}
-                />
-              </View>
-              <View>
-                <Text style={styles.statLabel}>{stat.label}</Text>
-                <Text style={styles.statValue}>{stat.value}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        {/* Main Chart Card */}
-        <View style={[styles.chartCard, { marginHorizontal: 18 }]}>
-          <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>Weekly Activity</Text>
-            <View style={styles.periodBadge}>
-              <Text style={styles.periodText}>Last 7 Days</Text>
-            </View>
+        {isLoading && !stats ? (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", marginTop: 50 }}>
+            <ActivityIndicator size="large" color="#A30000" />
+            <Text style={{ marginTop: 10, color: "#667085" }}>Loading Analytics...</Text>
           </View>
-
-          <View style={styles.chartContainer}>
-            <View style={styles.yAxis}>
-              <Text style={styles.axisLabel}>100</Text>
-              <Text style={styles.axisLabel}>50</Text>
-              <Text style={styles.axisLabel}>0</Text>
-            </View>
-            <View style={styles.barsArea}>
-              {chartData.map((item, index) => (
-                <View key={index} style={styles.barColumn}>
-                  <View style={styles.barBackground}>
-                    <View
-                      style={[styles.barFill, { height: `${item.value}%` }]}
+        ) : (
+          <>
+            {/* Stats Cards */}
+            <View style={[styles.statsRow, { paddingHorizontal: 18 }]}>
+              {displayStats.map((stat, index) => (
+                <View key={index} style={styles.statCard}>
+                  <View
+                    style={[styles.iconBg, { backgroundColor: stat.color + "20" }]}
+                  >
+                    <Ionicons
+                      name={stat.icon as any}
+                      size={20}
+                      color={stat.color}
                     />
                   </View>
-                  <Text style={styles.barLabel}>{item.label}</Text>
+                  <View>
+                    <Text style={styles.statLabel}>{stat.label}</Text>
+                    <Text style={styles.statValue}>{stat.value}</Text>
+                  </View>
                 </View>
               ))}
             </View>
-          </View>
-        </View>
 
-        {/* Performance Summary */}
-        <View style={[styles.summaryCard, { marginHorizontal: 18 }]}>
-          <Text style={styles.summaryTitle}>Performance Summary</Text>
-          <Text style={styles.summaryText}>
-            You have participated in{" "}
-            <Text style={styles.highlight}>12 contests</Text> this week. Your
-            activity is <Text style={styles.positive}>15% higher</Text> than
-            last week. Keep it up!
-          </Text>
-
-          <View style={styles.progressContainer}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>Monthly Goal</Text>
-              <Text style={styles.progressValue}>80%</Text>
-            </View>
-            <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: "80%" }]} />
-            </View>
-          </View>
-        </View>
-
-        <PromotionalBanner marginTop={25} marginBottom={10} />
-
-        <View style={{ marginTop: 20, paddingHorizontal: 18 }}>
-          <SectionHeader title="Recent Achievements" showArrow={false} />
-          <View style={[styles.summaryCard, { marginTop: 0 }]}>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 15 }}
-            >
-              <View style={[styles.iconBg, { backgroundColor: "#FDF2F2" }]}>
-                <Ionicons name="medal-outline" size={24} color="#990009" />
+            {/* Main Activity Chart */}
+            <View style={[styles.chartCard, { marginHorizontal: 18 }]}>
+              <View style={styles.chartHeader}>
+                <Text style={styles.chartTitle}>Weekly Activity</Text>
+                <View style={styles.periodBadge}>
+                  <Text style={styles.periodText}>Last 7 Days</Text>
+                </View>
               </View>
-              <View>
-                <Text style={{ fontWeight: "700", color: "#1A2E4C" }}>
-                  Early Bird
-                </Text>
-                <Text style={{ color: "#667085", fontSize: 12 }}>
-                  Joined 5 contests in first hour
-                </Text>
+
+              <View style={styles.chartContainer}>
+                <View style={styles.yAxis}>
+                  <Text style={styles.axisLabel}>{maxActivityValue}</Text>
+                  <Text style={styles.axisLabel}>{Math.round(maxActivityValue / 2)}</Text>
+                  <Text style={styles.axisLabel}>0</Text>
+                </View>
+                <View style={styles.barsArea}>
+                  {(stats?.activity || []).map((item, index) => (
+                    <View key={index} style={styles.barColumn}>
+                      <View style={styles.barBackground}>
+                        <View
+                          style={[
+                            styles.barFill,
+                            { height: `${(item.value / maxActivityValue) * 100}%` }
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.barLabel}>{item.label}</Text>
+                    </View>
+                  ))}
+                  
+                  {/* Empty State Overlay */}
+                  {(!stats || stats.activity.every(a => a.value === 0)) && (
+                    <View style={styles.chartOverlay}>
+                      <Text style={styles.emptyActivityText}>No activity data</Text>
+                    </View>
+                  )}
+                </View>
               </View>
             </View>
-          </View>
-        </View>
+
+            {/* Performance Summary */}
+            <View style={[styles.summaryCard, { marginHorizontal: 18 }]}>
+              <Text style={styles.summaryTitle}>Performance Summary</Text>
+              <Text style={styles.summaryText}>
+                You have participated in{" "}
+                <Text style={styles.highlight}>{stats?.thisWeekCount || 0} contests</Text> this week. Your
+                activity is{" "}
+                <Text style={stats?.percentageChange! >= 0 ? styles.positive : { color: '#E43D40', fontWeight: '600' }}>
+                  {Math.abs(stats?.percentageChange || 0)}% {stats?.percentageChange! >= 0 ? 'higher' : 'lower'}
+                </Text>{" "}
+                than last week. Keep it up!
+              </Text>
+
+              <View style={styles.progressContainer}>
+                <View style={styles.progressHeader}>
+                  <Text style={styles.progressLabel}>Monthly Goal</Text>
+                  <Text style={styles.progressValue}>{stats?.monthlyProgress || 0}%</Text>
+                </View>
+                <View style={styles.progressBarBg}>
+                  <View
+                    style={[
+                      styles.progressBarFill,
+                      { width: `${stats?.monthlyProgress || 0}%` }
+                    ]}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <PromotionalBanner marginTop={25} marginBottom={10} />
+
+            <View style={{ marginTop: 20, paddingHorizontal: 18, paddingBottom: 20 }}>
+              <SectionHeader title="Recent Achievements" showArrow={false} />
+              {stats?.achievements && stats.achievements.length > 0 ? (
+                stats.achievements.map((achievement, idx) => (
+                  <View key={idx} style={[styles.summaryCard, { marginTop: 0, marginBottom: 10 }]}>
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center", gap: 15 }}
+                    >
+                      <View style={[styles.iconBg, { backgroundColor: achievement.color }]}>
+                        <Ionicons name={achievement.icon as any} size={24} color="#990009" />
+                      </View>
+                      <View>
+                        <Text style={{ fontWeight: "700", color: "#1A2E4C" }}>
+                          {achievement.title}
+                        </Text>
+                        <Text style={{ color: "#667085", fontSize: 12 }}>
+                          {achievement.description}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View style={[styles.summaryCard, { alignItems: "center", paddingVertical: 30, borderStyle: 'dashed', borderWidth: 1, borderColor: '#D0D5DD' }]}>
+                  <View style={[styles.iconBg, { backgroundColor: "#F2F4F7", marginBottom: 10 }]}>
+                    <Ionicons name="lock-closed-outline" size={20} color="#98A2B3" />
+                  </View>
+                  <Text style={{ fontWeight: "700", color: "#475467" }}>No Achievements Yet</Text>
+                  <Text style={{ color: "#667085", fontSize: 12, textAlign: 'center', marginTop: 4 }}>
+                    Start winning contests to unlock exclusive badges and rewards!
+                  </Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -316,6 +386,32 @@ const styles = StyleSheet.create({
   progressBarFill: {
     height: "100%",
     backgroundColor: "#A30000",
+  },
+  emptyActivityContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 20,
+  },
+  emptyActivityText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#475467",
+    marginTop: 10,
+  },
+  emptyActivitySubtext: {
+    fontSize: 12,
+    color: "#667085",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  chartOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 10,
+    zIndex: 10,
   },
 });
 
