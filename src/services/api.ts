@@ -20,6 +20,7 @@ export interface ApiResponse<T = any> {
     title: string;
     status: number;
     traceId?: string;
+    code?: string;
   };
   message?: string;
 }
@@ -1174,6 +1175,37 @@ export const authApi = {
       return {
         success: false,
         error: { title: 'Failed to fetch submissions', status: error?.response?.status || 500 },
+      };
+    }
+  },
+
+  // Create a report
+  // Backend endpoint: POST /v1/reports
+  // Requires authentication
+  async createReport(
+    targetType: 'CONTEST' | 'USER' | 'SUBMISSION' | 'VOTE' | 'Other',
+    targetId: string,
+    reason: string,
+    description?: string
+  ): Promise<ApiResponse<{ message: string; reportId: string }>> {
+    try {
+      console.log('API: Creating report for', targetType, targetId);
+      const response = await apiClient.post<{
+        message: string;
+        reportId: string;
+      }>('/v1/reports', {
+        targetType,
+        targetId,
+        reason,
+        description,
+      });
+      console.log('API: Report created:', response);
+      return response;
+    } catch (error: any) {
+      console.log('API: Error creating report:', error);
+      return {
+        success: false,
+        error: { title: 'Failed to submit report', status: error?.response?.status || 500 },
       };
     }
   },

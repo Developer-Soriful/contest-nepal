@@ -241,6 +241,14 @@ const HomePage = () => {
                   imageSource={activity.coverImageUrl && activity.coverImageUrl.trim() !== '' ? { uri: activity.coverImageUrl } : undefined}
                   badgeText={activity.status}
                   isActive={activity.status === 'active'}
+                  onPress={() => {
+                    if (!activity.contestId) {
+                      console.log('[HomePage] Cannot navigate - contestId is missing');
+                      return;
+                    }
+                    console.log('[HomePage] Activity clicked, navigating to contest:', activity.contestId);
+                    router.push(`/contest-detail?contestId=${activity.contestId}`);
+                  }}
                   containerStyle={{
                     width: activities.length === 1 ? screenWidth - horizontalPadding : 300,
                     marginRight: activities.length === 1 ? 0 : 16,

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,42 +13,73 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { authApi } from "../services/api";
 import CustomGradientButton from "./CustomGradientButton";
 
 interface ReportModalProps {
   isVisible: boolean;
   onClose: () => void;
   targetName?: string;
+  targetType: 'CONTEST' | 'USER' | 'SUBMISSION' | 'VOTE' | 'Other';
+  targetId: string;
 }
 
+// Map display labels to backend accepted values
 const REPORT_REASONS = [
-  "Inappropriate Content",
-  "Spam or Misleading",
-  "Scam or Fraud",
-  "Intellectual Property Violation",
-  "Other",
+  { label: "Inappropriate Content", value: "inappropriate" },
+  { label: "Spam or Misleading", value: "spam" },
+  { label: "Scam or Fraud", value: "fraud" },
+  { label: "Intellectual Property Violation", value: "copyright" },
+  { label: "Other", value: "other" },
 ];
 
 const ReportModal: React.FC<ReportModalProps> = ({
   isVisible,
   onClose,
   targetName,
+  targetType,
+  targetId,
 }) => {
-  const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [selectedReason, setSelectedReason] = useState<{ label: string; value: string } | null>(null);
   const [additionalContext, setAdditionalContext] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const handleSubmit = () => {
-    if (!selectedReason) return;
+  const handleSubmit = async () => {
+    if (!selectedReason) {
+      Alert.alert('Error', 'Please select a reason for reporting');
+      return;
+    }
 
     setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
+    
+    try {
+      console.log('[ReportModal] Submitting report:', { targetType, targetId, reason: selectedReason.value, description: additionalContext });
+      
+      const response = await authApi.createReport(
+        targetType,
+        targetId,
+        selectedReason.value,
+        additionalContext.trim() || undefined
+      );
+      
+      console.log('[ReportModal] Report response:', response);
+      
+      if (response.success) {
+        setIsSuccess(true);
+        // Auto close after 2 seconds
+        setTimeout(() => {
+          handleClose();
+        }, 2000);
+      } else {
+        Alert.alert('Error', response.error?.title || 'Failed to submit report. Please try again.');
+      }
+    } catch (error) {
+      console.log('[ReportModal] Error submitting report:', error);
+      Alert.alert('Error', 'Network error. Please try again.');
+    } finally {
       setIsSubmitting(false);
-      setIsSuccess(true);
-      // Reset after a delay or on close
-    }, 1500);
+    }
   };
 
   const handleClose = () => {
@@ -116,7 +148,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
                       const isSelected = selectedReason === reason;
                       return (
                         <TouchableOpacity
-                          key={reason}
+                          key={reason.value}
                           style={styles.reasonItem}
                           onPress={() => setSelectedReason(reason)}
                           activeOpacity={0.7}
@@ -137,7 +169,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
                               isSelected && styles.selectedReasonText,
                             ]}
                           >
-                            {reason}
+                            {reason.label}
                           </Text>
                         </TouchableOpacity>
                       );

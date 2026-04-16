@@ -15,6 +15,7 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { import_img } from "../../assets/import_img";
 import CustomGradientButton from "../components/CustomGradientButton";
 import Header from "../components/Header";
 import OrganizerInfo from "../components/OrganizerInfo";
@@ -42,7 +43,7 @@ const formatDate = (dateString: string): string => {
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return 'Invalid date';
-    
+
     const options: Intl.DateTimeFormatOptions = {
       month: 'short',
       day: 'numeric',
@@ -57,18 +58,18 @@ const formatDate = (dateString: string): string => {
 // Calculate time remaining
 const getTimeRemaining = (endDateString: string) => {
   if (!endDateString) return { days: 0, hours: 0, minutes: 0 };
-  
+
   try {
     const endDate = new Date(endDateString);
     const now = new Date();
     const diff = endDate.getTime() - now.getTime();
-    
+
     if (diff <= 0) return { days: 0, hours: 0, minutes: 0 };
-    
+
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     return { days, hours, minutes };
   } catch {
     return { days: 0, hours: 0, minutes: 0 };
@@ -117,6 +118,12 @@ interface ContestDetails {
   participantCount: number;
   submissionCount: number;
   isActive: boolean;
+  organizer?: {
+    id: string;
+    displayName: string;
+    avatarUrl?: string;
+    bio?: string;
+  };
 }
 
 export default function ContestDetailsScreen() {
@@ -142,9 +149,9 @@ export default function ContestDetailsScreen() {
     try {
       setLoading(true);
       console.log('[ContestDetail] Fetching contest:', contestId);
-      
+
       const response = await authApi.getContestById(contestId as string);
-      
+
       if (response.success && response.data) {
         console.log('[ContestDetail] Contest loaded:', response.data.title);
         setContest(response.data);
@@ -177,7 +184,7 @@ export default function ContestDetailsScreen() {
       router.push(`/entry-form?contestId=${contest.id}`);
     }
   };
-  
+
   const handleStartEntry = () => {
     if (contest?.id) {
       router.replace(`/entry-form?contestId=${contest.id}`);
@@ -185,7 +192,7 @@ export default function ContestDetailsScreen() {
       console.error('[ContestDetail] No contest ID available');
     }
   };
-  
+
   const handleViewEntries = () => {
     router.push("/all-contestants");
   };
@@ -275,9 +282,20 @@ export default function ContestDetailsScreen() {
         <View style={{ paddingHorizontal: 16 }}>
           {/* Organizer info */}
           <OrganizerInfo
-            name="Creative Labs"
-            avatar={{ uri: "https://i.pravatar.cc/150?u=organizer" }}
-            onPress={() => router.push("/organizer-profile")}
+            name={contest.organizer?.displayName || "Contest Organizer"}
+            avatar={
+              contest.organizer?.avatarUrl && contest.organizer.avatarUrl.trim() !== ''
+                ? { uri: contest.organizer.avatarUrl }
+                : import_img.user_avatar
+            }
+            onPress={() => {
+              if (contest.organizer?.id) {
+                router.push({
+                  pathname: "/organizer-profile",
+                  params: { organizerId: contest.organizer.id }
+                });
+              }
+            }}
           />
           <Text
             style={{
@@ -553,6 +571,8 @@ export default function ContestDetailsScreen() {
         isVisible={isReportModalVisible}
         onClose={() => setIsReportModalVisible(false)}
         targetName={contest.title}
+        targetType="CONTEST"
+        targetId={contest.id}
       />
     </SafeAreaView>
   );

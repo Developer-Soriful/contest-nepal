@@ -141,7 +141,26 @@ export default function EntryFormScreen() {
                 ]);
             } else {
                 console.log('[EntryForm] Submit failed:', response.error);
-                Alert.alert('Error', response.error?.title || 'Failed to submit entry');
+                
+                // Handle ALREADY_SUBMITTED error with industry-standard UX
+                if (response.error?.code === 'ALREADY_SUBMITTED') {
+                    Alert.alert(
+                        'Already Submitted',
+                        'You have already submitted an entry for this contest. You can view your submissions in the Dashboard.',
+                        [
+                            { 
+                                text: 'Go to Dashboard', 
+                                onPress: () => router.replace('/dashboard')
+                            },
+                            {
+                                text: 'Stay Here',
+                                style: 'cancel'
+                            }
+                        ]
+                    );
+                } else {
+                    Alert.alert('Error', response.error?.title || 'Failed to submit entry');
+                }
             }
         } catch (err) {
             console.log('[EntryForm] Submit error:', err);
