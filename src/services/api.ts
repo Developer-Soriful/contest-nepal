@@ -60,6 +60,13 @@ export interface AuthResponse {
       bio: string | null;
       location: string | null;
     };
+    settings?: {
+      notifications?: {
+        push: boolean;
+        inApp: boolean;
+        email: boolean;
+      };
+    };
     organizer?: {
       status: string;
       businessName: string;
@@ -491,15 +498,42 @@ export const authApi = {
   },
 
   // Logout user
-  async logout(): Promise<ApiResponse<void>> {
-    const { refreshToken } = await apiClient.getTokens();
-
-    if (refreshToken) {
-      await apiClient.post<void>('/v1/auth/logout', { refreshToken });
+  async logout(refreshToken: string): Promise<ApiResponse<void>> {
+    try {
+      const response = await apiClient.post<void>('/v1/auth/logout', { refreshToken });
+      await apiClient.clearTokens();
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data || { title: "Logout failed", status: 500 },
+      };
     }
+  },
 
-    await apiClient.clearTokens();
-    return { success: true };
+  async deleteAccount(): Promise<ApiResponse<void>> {
+    try {
+      const response = await apiClient.delete<void>('/v1/me');
+      await apiClient.clearTokens();
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data || { title: "Deletion failed", status: 500 },
+      };
+    }
+  },
+
+  async updateMe(data: any): Promise<ApiResponse<any>> {
+    try {
+      const response = await apiClient.patch<any>('/v1/me', data);
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data || { title: "Update failed", status: 500 },
+      };
+    }
   },
 
   // Refresh tokens - note: this uses raw fetch to avoid sending expired access token

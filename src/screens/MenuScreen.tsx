@@ -1,25 +1,30 @@
 import Header from "@/src/components/Header";
 import PromotionalBanner from "@/src/components/PromotionalBanner";
 import ReportModal from "@/src/components/ReportModal";
+import { useAuth } from "@/src/contexts/AuthContext";
+import { authApi } from "@/src/services/api";
 import {
-    AntDesign,
-    Feather,
-    Ionicons,
-    MaterialCommunityIcons,
-    Octicons,
-    SimpleLineIcons,
+  AntDesign,
+  Feather,
+  Ionicons,
+  MaterialCommunityIcons,
+  Octicons,
+  SimpleLineIcons,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -75,12 +80,65 @@ const Section = ({ title, children }: any) => (
 );
 
 const MenuScreen = () => {
+  const { user, logout, refreshUser } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isReportModalVisible, setIsReportModalVisible] = useState(false);
 
-  const handleLogout = () => {
+  // Notification state
+  const [notificationsEnabled, setNotificationsEnabled] = useState(
+    user?.settings?.notifications?.push ?? true
+  );
+  const [isUpdatingNotifications, setIsUpdatingNotifications] = useState(false);
+
+  const handleLogout = async () => {
     setShowLogoutModal(false);
-    router.replace("/(auth)/login");
+    await logout();
+  };
+
+  const handleDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await authApi.deleteAccount();
+      if (response.success) {
+        setShowDeleteModal(false);
+        await logout();
+        Alert.alert("Account Deleted", "Your account has been successfully removed.");
+      } else {
+        Alert.alert("Error", response.error?.title || "Failed to delete account");
+      }
+    } catch (error) {
+      Alert.alert("Error", "An unexpected error occurred");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleNotifications = async (value: boolean) => {
+    setNotificationsEnabled(value);
+    setIsUpdatingNotifications(true);
+    try {
+      const response = await authApi.updateMe({
+        settings: {
+          notifications: {
+            push: value
+          }
+        }
+      });
+      if (response.success) {
+        await refreshUser();
+      } else {
+        // Revert on failure
+        setNotificationsEnabled(!value);
+        Alert.alert("Error", response.error?.title || "Failed to update notification settings");
+      }
+    } catch (error) {
+      setNotificationsEnabled(!value);
+      Alert.alert("Error", "An unexpected error occurred");
+    } finally {
+      setIsUpdatingNotifications(false);
+    }
   };
 
   return (
@@ -100,11 +158,20 @@ const MenuScreen = () => {
               onPress={() => router.push("/profile")}
             />
             <View style={styles.divider} />
-            <MenuItem
-              icon={<Octicons name="bell" size={18} color="#667085" />}
-              title="Notifications"
-              onPress={() => router.push("/notifications")}
-            />
+            <View style={styles.menuItemWithAction}>
+              <View style={styles.menuItemLeft}>
+                <Octicons name="bell" size={18} color="#667085" />
+                <Text style={styles.menuItemText}>Push Notifications</Text>
+              </View>
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={toggleNotifications}
+                disabled={isUpdatingNotifications}
+                trackColor={{ false: "#D1D5DB", true: "#34D399" }}
+                thumbColor="#FFF"
+                ios_backgroundColor="#D1D5DB"
+              />
+            </View>
             <View style={styles.divider} />
             <MenuItem
               icon={<Feather name="shield" size={18} color="#667085" />}
@@ -177,6 +244,13 @@ const MenuScreen = () => {
               title="About App"
               onPress={() => router.push("/about-app")}
             />
+            <View style={styles.divider} />
+            <MenuItem
+              icon={<Ionicons name="trash-outline" size={18} color="#A30000" />}
+              title="Delete Account"
+              isDestructive={true}
+              onPress={() => setShowDeleteModal(true)}
+            />
           </Section>
 
           {/* Logout Button */}
@@ -232,11 +306,59 @@ const MenuScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {/* Account Deletion Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showDeleteModal}
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <LinearGradient
+              colors={["#A30000", "#D21F2A"]}
+              style={styles.modalIconContainer}
+            >
+              <Ionicons name="warning-outline" size={40} color="#FFF" />
+            </LinearGradient>
+
+            <Text style={styles.modalTitle}>Extreme Caution!</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to delete your account? This action is irreversible and you will lose access to all your participation history and rewards.
+            </Text>
+
+            <View style={styles.modalActionRow}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+              >
+                <Text style={styles.cancelButtonText}>Keep Account</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleDeleteAccount}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Yes, Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       {/* Report Modal */}
       <ReportModal
         isVisible={isReportModalVisible}
         onClose={() => setIsReportModalVisible(false)}
         targetName="App Feedback"
+        targetType="Other"
+        targetId="app_feedback"
       />
     </SafeAreaView>
   );
@@ -279,6 +401,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 16,
+  },
+  menuItemWithAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
   },
   menuItemLeft: {
     flexDirection: "row",
