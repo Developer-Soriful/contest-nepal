@@ -1331,4 +1331,42 @@ export const authApi = {
       };
     }
   },
+
+  // Social Login (Google OAuth)
+  // Backend endpoint: POST /v1/auth/social
+  async socialLogin(provider: 'google' | 'apple', token: string): Promise<ApiResponse<AuthResponse>> {
+    try {
+      console.log('API: Social login with provider:', provider);
+      const response = await apiClient.post<AuthResponse>('/v1/auth/social', {
+        provider,
+        token,
+      });
+
+      if (response.success && response.data) {
+        // Store tokens
+        if (response.data.tokens) {
+          await apiClient.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken);
+        }
+
+        // Normalize avatar URL
+        if (response.data.user?.profile) {
+          response.data.user.profile.avatarUrl = getImageUrl(response.data.user.profile.avatarUrl);
+        }
+
+        // Save user data
+        await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user));
+
+        // Clear session expired flag
+        await SafeAsyncStorage.removeItem('SESSION_EXPIRED');
+      }
+
+      return response;
+    } catch (error: any) {
+      console.log('API: Error in social login:', error);
+      return {
+        success: false,
+        error: error?.response?.data?.error || { title: 'Social login failed', status: 500 },
+      };
+    }
+  },
 };

@@ -25,6 +25,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<ApiResponse<AuthResponse>>;
   register: (data: RegisterRequest) => Promise<ApiResponse<AuthResponse>>;
+  socialLogin: (provider: 'google' | 'apple', token: string) => Promise<ApiResponse<AuthResponse>>;
   resetPassword: (tokenOrCode: string, newPassword: string, email?: string, code?: string) => Promise<ApiResponse<void>>;
   forgotPassword: (emailOrPhone: string) => Promise<ApiResponse<void>>;
   verifyOtp: (email: string, code: string) => Promise<ApiResponse<void>>;
@@ -208,6 +209,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return {
         success: false,
         error: { title: 'Registration failed', status: 500 },
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const socialLogin = async (provider: 'google' | 'apple', token: string): Promise<ApiResponse<AuthResponse>> => {
+    try {
+      setIsLoading(true);
+      const response = await authApi.socialLogin(provider, token);
+
+      if (response.success && response.data) {
+        setUser(response.data.user);
+      }
+
+      return response;
+    } catch (error) {
+      console.log('Social login error:', error);
+      return {
+        success: false,
+        error: { title: 'Social login failed', status: 500 },
       };
     } finally {
       setIsLoading(false);
@@ -440,6 +462,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isAuthenticated,
     login,
     register,
+    socialLogin,
     forgotPassword,
     verifyOtp,
     verifyEmail,

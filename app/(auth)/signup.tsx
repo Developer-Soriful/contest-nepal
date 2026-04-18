@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomGradientButton from '../../src/components/CustomGradientButton';
 import { useAuth } from '../../src/contexts/AuthContext';
+import useGoogleAuth from '../../src/hooks/useGoogleAuth';
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -26,7 +27,35 @@ export default function Signup() {
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
-  const { register, isLoading: authLoading } = useAuth();
+  const { register, socialLogin, isLoading: authLoading } = useAuth();
+  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuth();
+
+  const handleGoogleSignup = async () => {
+    try {
+      const { token, error } = await googleSignIn();
+      
+      if (error) {
+        Alert.alert('Google Signup Failed', error.message);
+        return;
+      }
+
+      if (token) {
+        const response = await socialLogin('google', token);
+        
+        if (response.success) {
+          router.replace('/(tabs)' as any);
+        } else {
+          Alert.alert(
+            'Signup Failed',
+            response.error?.title || 'Google signup failed. Please try again.'
+          );
+        }
+      }
+    } catch (error) {
+      console.log('Google signup error:', error);
+      Alert.alert('Error', 'An unexpected error occurred during Google signup.');
+    }
+  };
 
   const handleSignup = async () => {
     // Basic validation
@@ -237,7 +266,11 @@ export default function Signup() {
                 marginBottom: 35,
               }}
             >
-              <TouchableOpacity style={styles.socialButton}>
+              <TouchableOpacity 
+                style={styles.socialButton}
+                onPress={handleGoogleSignup}
+                disabled={googleLoading || authLoading}
+              >
                 <Image
                   source={{
                     uri: "https://cdn-icons-png.flaticon.com/512/2991/2991148.png",

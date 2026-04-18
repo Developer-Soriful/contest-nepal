@@ -2,21 +2,22 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { import_img } from '../../assets/import_img';
 import CustomGradientButton from '../../src/components/CustomGradientButton';
 import { useAuth } from '../../src/contexts/AuthContext';
+import useGoogleAuth from '../../src/hooks/useGoogleAuth';
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -25,7 +26,35 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
-  const { login, isLoading: authLoading } = useAuth();
+  const { login, socialLogin, isLoading: authLoading } = useAuth();
+  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuth();
+
+  const handleGoogleLogin = async () => {
+    try {
+      const { token, error } = await googleSignIn();
+      
+      if (error) {
+        Alert.alert('Google Login Failed', error.message);
+        return;
+      }
+
+      if (token) {
+        const response = await socialLogin('google', token);
+        
+        if (response.success) {
+          router.replace('/(tabs)' as any);
+        } else {
+          Alert.alert(
+            'Login Failed',
+            response.error?.title || 'Google login failed. Please try again.'
+          );
+        }
+      }
+    } catch (error) {
+      console.log('Google login error:', error);
+      Alert.alert('Error', 'An unexpected error occurred during Google login.');
+    }
+  };
 
   const handleLogin = async () => {
     // Basic validation
@@ -279,7 +308,11 @@ export default function Login() {
               }}
             >
               {/* Google */}
-              <TouchableOpacity style={styles.socialButton}>
+              <TouchableOpacity 
+                style={styles.socialButton}
+                onPress={handleGoogleLogin}
+                disabled={googleLoading || authLoading}
+              >
                 <Image
                   source={{
                     uri: "https://cdn-icons-png.flaticon.com/512/2991/2991148.png",

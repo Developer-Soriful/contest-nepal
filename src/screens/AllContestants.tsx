@@ -92,12 +92,11 @@ const AllContestants = () => {
       } else {
         // Show detailed error message from backend
         const errorTitle = response.error?.title || 'Vote Failed';
-        const errorCode = response.error?.code ? `\nError Code: ${response.error.code}` : '';
-        const statusInfo = response.error?.status ? `\nStatus: ${response.error.status}` : '';
+        const errorStatus = response.error?.status || '';
         
         Alert.alert(
           `❌ ${errorTitle}`, 
-          `Unable to submit your vote. Please try again.${errorCode}${statusInfo}`,
+          errorStatus ? `Status: ${errorStatus}` : 'Unable to submit your vote.',
           [{ text: 'OK', style: 'default' }]
         );
       }
