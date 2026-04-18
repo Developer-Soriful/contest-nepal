@@ -22,7 +22,33 @@ export default function VerifyOtpScreen() {
     const [isLoading, setIsLoading] = useState(false);
     const inputs = useRef<Array<TextInput | null>>([]);
 
-    const { verifyOtp } = useAuth();
+    const { verifyOtp, forgotPassword } = useAuth();
+
+    // Validate and format the contact info
+    const getContactDisplay = () => {
+        if (!email) return "your email";
+        
+        // Check if it's an email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (emailRegex.test(email)) {
+            return email;
+        }
+        
+        // If it's a phone number, format it
+        const phoneRegex = /^\d+$/;
+        if (phoneRegex.test(email.replace(/\D/g, ''))) {
+            return email;
+        }
+        
+        // Default fallback
+        return email;
+    };
+
+    const isEmail = () => {
+        if (!email) return false;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
 
     const handleChange = (text: string, index: number) => {
         const newCode = [...code];
@@ -83,8 +109,36 @@ export default function VerifyOtpScreen() {
     };
 
     const handleResend = async () => {
-        // Resend OTP logic - call forgotPassword again
-        Alert.alert("Resend Code", "A new code has been sent to your email.");
+        if (!email) {
+            Alert.alert("Error", "Email not found. Please try again.");
+            return;
+        }
+
+        try {
+            console.log('[VerifyOTP] Resending OTP to:', email);
+            const response = await forgotPassword(email);
+            
+            if (response.success) {
+                // Clear current OTP inputs
+                setCode(["", "", "", "", "", ""]);
+                // Focus first input
+                inputs.current[0]?.focus();
+                
+                Alert.alert(
+                    "Code Resent", 
+                    "A new 6-digit code has been sent to your email.",
+                    [{ text: "OK" }]
+                );
+            } else {
+                Alert.alert(
+                    "Resend Failed",
+                    response.error?.title || "Failed to resend code. Please try again."
+                );
+            }
+        } catch (error) {
+            console.log('[VerifyOTP] Resend error:', error);
+            Alert.alert("Error", "Failed to resend code. Please try again.");
+        }
     };
 
     return (
@@ -113,7 +167,10 @@ export default function VerifyOtpScreen() {
                     <View style={styles.titleSection}>
                         <Text style={styles.mainTitle}>Enter Verification Code</Text>
                         <Text style={styles.subTitle}>
-                            We've sent a 6-digit code to {email || "your email"}
+                            We've sent a 6-digit code to {isEmail() ? "your email" : "your phone number"}
+                        </Text>
+                        <Text style={styles.contactText}>
+                            {getContactDisplay()}
                         </Text>
                     </View>
 
@@ -200,6 +257,12 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: "#6c757d",
         lineHeight: 20,
+    },
+    contactText: {
+        fontSize: 16,
+        color: "#1a1a2e",
+        fontWeight: "bold",
+        marginTop: 4,
     },
     otpContainer: {
         flexDirection: "row",

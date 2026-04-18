@@ -9,7 +9,7 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
  * Normalizes an image path from the backend into a full URL.
  * Handles both full URLs (like Cloudinary) and relative paths (legacy local storage).
  */
-const getImageUrl = (path: string | null | undefined): string => {
+export const getImageUrl = (path: string | null | undefined): string => {
   if (!path || path.trim() === "") {
     // Default placeholder for missing images
     return "https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=500";
@@ -1262,7 +1262,57 @@ export const authApi = {
       return response;
     } catch (error) {
       console.log('API: Error fetching contests:', error);
-      return { success: false, error: { title: 'Failed to fetch contests', status: 500 } };
+      return {
+        success: false,
+        error: { title: 'Failed to fetch contests', status: 500 },
+      };
+    }
+  },
+
+  // Get all contestants for public display
+  async getContestants(limit = 50): Promise<ApiResponse<{ items: any[] }>> {
+    try {
+      console.log('API: Fetching contestants');
+      const response = await apiClient.get<{ items: any[] }>(`/v1/contestants?limit=${limit}`);
+      return response;
+    } catch (error) {
+      console.log('API: Error fetching contestants:', error);
+      return {
+        success: false,
+        error: { title: 'Failed to fetch contestants', status: 500 },
+      };
+    }
+  },
+
+  // Submit vote for a contestant
+  // Backend endpoint: POST /v1/submissions/:id/vote
+  async submitVote(submissionId: string): Promise<ApiResponse<{ voteCount: number }>> {
+    try {
+      console.log('API: Submitting vote for submission:', submissionId);
+      const response = await apiClient.post<{ voteCount: number }>(`/v1/submissions/${submissionId}/vote`);
+      return response;
+    } catch (error: any) {
+      console.log('API: Error submitting vote:', error);
+      return {
+        success: false,
+        error: error?.response?.data?.error || { title: 'Failed to submit vote', status: 500 },
+      };
+    }
+  },
+
+  // Vote on a contest
+  // Backend endpoint: POST /v1/contests/:id/vote
+  async voteOnContest(contestId: string): Promise<ApiResponse<{ voteCount: number }>> {
+    try {
+      console.log('API: Submitting vote for contest:', contestId);
+      const response = await apiClient.post<{ voteCount: number }>(`/v1/contests/${contestId}/vote`);
+      return response;
+    } catch (error: any) {
+      console.log('API: Error submitting vote for contest:', error);
+      return {
+        success: false,
+        error: error?.response?.data?.error || { title: 'Failed to submit vote', status: 500 },
+      };
     }
   },
 };

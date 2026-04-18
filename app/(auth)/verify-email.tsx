@@ -1,18 +1,56 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from "expo-router";
-import React, { useRef, useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomGradientButton from '../../src/components/CustomGradientButton';
 import { useAuth } from '../../src/contexts/AuthContext';
+import SafeAsyncStorage from '../../src/lib/SafeAsyncStorage';
 
 export default function VerifyEmail() {
+    const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
     const [code, setCode] = useState(['', '', '', '', '', '']);
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const inputs = useRef<(TextInput | null)[]>([]);
     
     const { verifyEmail, resendVerificationEmail } = useAuth();
+
+    // Initialize email from navigation params or storage
+    useEffect(() => {
+        if (emailParam) {
+            setEmail(emailParam);
+        } else {
+            // Try to get email from storage (for cases where user navigates directly)
+            const getEmailFromStorage = async () => {
+                try {
+                    const userData = await SafeAsyncStorage.getItem('user_data');
+                    if (userData) {
+                        const user = JSON.parse(userData);
+                        if (user.email) {
+                            setEmail(user.email);
+                        }
+                    }
+                } catch (error) {
+                    console.log('Error getting email from storage:', error);
+                }
+            };
+            getEmailFromStorage();
+        }
+    }, [emailParam]);
+
+    // Format email for display (mask for privacy)
+    const formatEmailForDisplay = (email: string) => {
+        if (!email || !email.includes('@')) return email;
+        
+        const [username, domain] = email.split('@');
+        if (username.length <= 2) {
+            return `${username[0]}***@${domain}`;
+        }
+        
+        const maskedUsername = username.charAt(0) + '***' + username.charAt(username.length - 1);
+        return `${maskedUsername}@${domain}`;
+    };
 
     const handleVerify = async () => {
         const fullCode = code.join('');
@@ -104,7 +142,10 @@ export default function VerifyEmail() {
                     <View style={styles.titleSection}>
                         <Text style={styles.mainTitle}>Enter Verification Code</Text>
                         <Text style={styles.subTitle}>
-                            We've sent a 6-digit code to j***@gmail.com
+                            We've sent a 6-digit code to your email
+                        </Text>
+                        <Text style={styles.emailDisplay}>
+                            {formatEmailForDisplay(email) || 'your email'}
                         </Text>
                     </View>
 
@@ -225,6 +266,13 @@ const styles = StyleSheet.create({
         color: "#6c757d",
         textAlign: "center",
         paddingHorizontal: 20,
+    },
+    emailDisplay: {
+        fontSize: 16,
+        fontWeight: "bold",
+        color: "#1a1a2e",
+        marginTop: 4,
+        textAlign: "center",
     },
     otpContainer: {
         flexDirection: "row",

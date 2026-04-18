@@ -12,10 +12,10 @@ import {
 } from "react-native";
 
 interface ContestantCardProps {
-  image: ImageSourcePropType;
+  image: string | ImageSourcePropType;
   title: string;
   description: string;
-  avatar: ImageSourcePropType;
+  avatar: string | ImageSourcePropType;
   userName: string;
   votes: number;
   onVote: () => void;
@@ -40,6 +40,15 @@ const ContestantCard: React.FC<ContestantCardProps> = ({
       onVote();
     }
   };
+
+  // Helper to convert string URLs to ImageSourcePropType
+  const getImageSource = (src: string | ImageSourcePropType): ImageSourcePropType => {
+    if (typeof src === 'string') {
+      return { uri: src };
+    }
+    return src;
+  };
+
   return (
     <View>
       {/* Winner Header */}
@@ -52,7 +61,7 @@ const ContestantCard: React.FC<ContestantCardProps> = ({
       <View style={styles.card}>
         {/* Main Image */}
         <View style={styles.imageContainer}>
-          <Image source={image} style={styles.mainImage} resizeMode="cover" />
+          <Image source={getImageSource(image)} style={styles.mainImage} resizeMode="cover" />
         </View>
 
         {/* Content */}
@@ -62,7 +71,7 @@ const ContestantCard: React.FC<ContestantCardProps> = ({
 
           {/* User Profile */}
           <View style={styles.profileRow}>
-            <Image source={avatar} style={styles.avatar} />
+            <Image source={getImageSource(avatar)} style={styles.avatar} />
             <Text style={styles.userName}>{userName}</Text>
           </View>
 
