@@ -1315,4 +1315,20 @@ export const authApi = {
       };
     }
   },
+
+  // Get vote counts for multiple contests
+  // Backend endpoint: POST /v1/contests/vote-counts
+  async getVoteCounts(contestIds: string[]): Promise<ApiResponse<{ voteCounts: Record<string, number> }>> {
+    try {
+      console.log('API: Fetching vote counts for contests:', contestIds);
+      const response = await apiClient.post<{ voteCounts: Record<string, number> }>('/v1/contests/vote-counts', { contestIds });
+      return response;
+    } catch (error: any) {
+      console.log('API: Error fetching vote counts:', error);
+      return {
+        success: false,
+        error: error?.response?.data?.error || { title: 'Failed to fetch vote counts', status: 500 },
+      };
+    }
+  },
 };

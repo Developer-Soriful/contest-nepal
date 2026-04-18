@@ -27,13 +27,22 @@ const AllContestants = () => {
         // Fetch contests (not contestants/submissions) - users vote on contests
         const response = await authApi.getContests(50);
         if (response.success && response.data?.items) {
+          const contests = response.data.items;
+          
+          // Get contest IDs for fetching vote counts
+          const contestIds = contests.map((c: any) => c._id || c.id);
+          
+          // Fetch vote counts from Vote model
+          const voteCountsResponse = await authApi.getVoteCounts(contestIds);
+          const voteCounts = voteCountsResponse.success ? voteCountsResponse.data?.voteCounts || {} : {};
+          
           // Transform contest data to match ContestantCard props
-          const transformedContests = response.data.items.map((contest: any) => {
+          const transformedContests = contests.map((contest: any) => {
             const organizer = contest.organizer || contest.organizerId || {};
-            const stats = contest.stats || {};
+            const contestId = contest._id || contest.id;
             
             return {
-              id: contest._id || contest.id,
+              id: contestId,
               // Use contest cover image
               image: contest.coverImageUrl || getImageUrl(null),
               // Use contest title
@@ -44,8 +53,8 @@ const AllContestants = () => {
               avatar: organizer.avatarUrl || getImageUrl(null),
               // Use organizer display name
               userName: organizer.displayName || 'Contest Organizer',
-              // Use contest participant/submission count as votes
-              votes: stats.submissionCount || stats.participantCount || 0,
+              // Use proper vote count from Vote model (not submissionCount)
+              votes: voteCounts[contestId] || 0,
             };
           });
           setContestants(transformedContests);
