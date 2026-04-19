@@ -23,6 +23,7 @@ interface Props {
   style?: ViewStyle;
   borderRadius?: number;
   backgroundColor?: string;
+  textColor?: string;
   disabled?: boolean;
   isLoading?: boolean;
 }
@@ -35,7 +36,6 @@ const CustomGradientButton = ({
   innerBorderColor = "white",
   containerStyle,
   textStyle,
-  activeOpacity = 0.8,
   style,
   borderRadius = 50,
   backgroundColor,

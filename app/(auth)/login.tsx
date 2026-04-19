@@ -2,22 +2,22 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { import_img } from '../../assets/import_img';
 import CustomGradientButton from '../../src/components/CustomGradientButton';
 import { useAuth } from '../../src/contexts/AuthContext';
-import useGoogleAuth from '../../src/hooks/useGoogleAuth';
+import { useGoogleAuthSimple } from '../../src/hooks/useGoogleAuthSimple';
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -27,17 +27,11 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   
   const { login, socialLogin, isLoading: authLoading } = useAuth();
-  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuth();
+  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuthSimple();
 
   const handleGoogleLogin = async () => {
     try {
-      const { token, error } = await googleSignIn();
-      
-      if (error) {
-        Alert.alert('Google Login Failed', error.message);
-        return;
-      }
-
+      const token = await googleSignIn();
       if (token) {
         const response = await socialLogin('google', token);
         
@@ -50,9 +44,11 @@ export default function Login() {
           );
         }
       }
-    } catch (error) {
-      console.log('Google login error:', error);
-      Alert.alert('Error', 'An unexpected error occurred during Google login.');
+    } catch (error: any) {
+      if (error.message !== 'User cancelled') {
+        console.log('Google login error:', error);
+        Alert.alert('Google Login Failed', error.message);
+      }
     }
   };
 
@@ -325,9 +321,9 @@ export default function Login() {
                 <Ionicons name="logo-apple" size={22} color="black" />
               </TouchableOpacity>
               {/* Facebook */}
-              <TouchableOpacity style={styles.socialButton}>
+              {/* <TouchableOpacity style={styles.socialButton}>
                 <Ionicons name="logo-facebook" size={24} color="#1877F2" />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
 
             {/* Don't have an account? */}

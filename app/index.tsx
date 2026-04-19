@@ -1,12 +1,20 @@
 import { import_img } from "@/assets/import_img";
+import { useAuth } from "@/src/contexts/AuthContext";
 import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { Redirect, router } from "expo-router";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function Index() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // If already authenticated, redirect to main app
+  if (!isLoading && isAuthenticated) {
+    return <Redirect href="/(tabs)" />;
+  }
+
   const handleGetStarted = () => {
-    router.navigate("/login");
+    router.navigate("/(auth)/login");
   };
   return (
     <SafeAreaView

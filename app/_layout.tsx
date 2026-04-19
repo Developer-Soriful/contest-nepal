@@ -71,6 +71,8 @@ export default function RootLayout() {
         <View style={{ flex: 1 }}>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
           </Stack>
           <View pointerEvents="none" style={styles.globalTopShadow}>
             <Image

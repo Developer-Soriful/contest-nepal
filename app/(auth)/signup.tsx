@@ -3,21 +3,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-    Alert,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomGradientButton from '../../src/components/CustomGradientButton';
 import { useAuth } from '../../src/contexts/AuthContext';
-import useGoogleAuth from '../../src/hooks/useGoogleAuth';
+import { useGoogleAuthSimple } from '../../src/hooks/useGoogleAuthSimple';
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -28,17 +28,11 @@ export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
   
   const { register, socialLogin, isLoading: authLoading } = useAuth();
-  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuth();
+  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuthSimple();
 
   const handleGoogleSignup = async () => {
     try {
-      const { token, error } = await googleSignIn();
-      
-      if (error) {
-        Alert.alert('Google Signup Failed', error.message);
-        return;
-      }
-
+      const token = await googleSignIn();
       if (token) {
         const response = await socialLogin('google', token);
         
@@ -51,9 +45,11 @@ export default function Signup() {
           );
         }
       }
-    } catch (error) {
-      console.log('Google signup error:', error);
-      Alert.alert('Error', 'An unexpected error occurred during Google signup.');
+    } catch (error: any) {
+      if (error.message !== 'User cancelled') {
+        console.log('Google signup error:', error);
+        Alert.alert('Google Signup Failed', error.message);
+      }
     }
   };
 
@@ -266,6 +262,7 @@ export default function Signup() {
                 marginBottom: 35,
               }}
             >
+              {/* Google */}
               <TouchableOpacity 
                 style={styles.socialButton}
                 onPress={handleGoogleSignup}
@@ -278,12 +275,13 @@ export default function Signup() {
                   style={{ width: 22, height: 22 }}
                 />
               </TouchableOpacity>
+              {/* Apple */}
               <TouchableOpacity style={styles.socialButton}>
                 <Ionicons name="logo-apple" size={22} color="black" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.socialButton}>
+              {/* <TouchableOpacity style={styles.socialButton}>
                 <Ionicons name="logo-facebook" size={24} color="#1877F2" />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
 
             {/* Footer */}

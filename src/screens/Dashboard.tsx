@@ -147,39 +147,6 @@ const Dashboard = () => {
     }
   });
 
-  // Static notifications as fallback
-  const fallbackNotifications = [
-    {
-      id: "1",
-      type: "prize_claimed",
-      title: "Prize Claimed",
-      message: "Congratulations! Your prize has been claimed successfully.",
-      date: "2026-03-12",
-    },
-    {
-      id: "2",
-      type: "new_contest",
-      title: "New Contest Live",
-      message: "Check out the new Premium Gaming Setup contest and join now.",
-      date: "2026-03-13",
-    },
-    {
-      id: "3",
-      type: "entry_approved",
-      title: "Entry Approved",
-      message:
-        'Your entry for "Summer Photography Challenge" has been approved!',
-      date: "2026-03-11",
-    },
-    {
-      id: "4",
-      type: "entry_rejected",
-      title: "Entry Rejected",
-      message:
-        "Your submission for 'Minimalist Logo' was rejected. See details for more information.",
-      date: "2026-03-10",
-    },
-  ];
   // Notification item component
   const NotificationItem = ({
     title,
@@ -289,6 +256,7 @@ const Dashboard = () => {
   // Generate submissions data from API response
   const mySubmissionsData = submissions.map(submission => ({
     id: submission._id,
+    contestId: submission.contestId?._id, // Pass contest ID for navigation
     title: submission.contestId?.title || 'Unknown Contest',
     date: new Date(submission.createdAt).toLocaleDateString('en-GB', {
       day: 'numeric',
@@ -300,11 +268,13 @@ const Dashboard = () => {
   }));
 
   const SubmissionItem = ({
+    contestId,
     title,
     date,
     status,
     reason,
   }: {
+    contestId?: string;
     title: string;
     date: string;
     status: string;
@@ -335,7 +305,7 @@ const Dashboard = () => {
 
     const styles = getStatusStyles();
 
-    const targetUrl = `/contest-detail-screen?status=${status}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`;
+    const targetUrl = `/contest-detail-screen?id=${contestId || ''}&status=${status}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`;
 
     return (
       <TouchableOpacity
@@ -647,6 +617,7 @@ const Dashboard = () => {
               .map((item) => (
                 <SubmissionItem
                   key={item.id}
+                  contestId={item.contestId}
                   title={item.title}
                   date={item.date}
                   status={item.status}

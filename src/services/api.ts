@@ -1370,3 +1370,17 @@ export const authApi = {
     }
   },
 };
+
+// Contest API Service
+// Note: Contest methods are currently part of authApi, exporting references for clean imports
+export const contestApi = {
+  getContestById: authApi.getContestById,
+  getContests: authApi.getContests,
+  getTrendingContests: authApi.getTrendingContests,
+  getNearbyContests: authApi.getNearbyContests,
+  getContestWithTasks: authApi.getContestWithTasks,
+  createSubmission: authApi.createSubmission,
+  getCalendarEvents: authApi.getCalendarEvents,
+  submitVote: authApi.submitVote,
+  getContestants: authApi.getContestants,
+};

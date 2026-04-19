@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Contest Nepal",
-    "slug": "Contest Nepal",
+    "slug": "contest-nepal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -42,6 +42,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7164e53a-a803-4b4a-8b4f-9ae14efd8b8b"
+      }
     }
   }
 }

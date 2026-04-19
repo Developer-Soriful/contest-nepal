@@ -2,14 +2,14 @@ import * as Location from "expo-location";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  ImageSourcePropType,
-  ListRenderItem,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View
+    ActivityIndicator,
+    FlatList,
+    ImageSourcePropType,
+    ListRenderItem,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import ContestCard from "../components/ContestCard";

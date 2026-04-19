@@ -1,0 +1,76 @@
+import { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+
+const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+
+export function useGoogleAuthNative() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    // Configure Google Sign-In
+    if (GOOGLE_CLIENT_ID) {
+      GoogleSignin.configure({
+        webClientId: GOOGLE_CLIENT_ID,
+        iosClientId: Platform.OS === 'ios' ? GOOGLE_IOS_CLIENT_ID : undefined,
+        offlineAccess: true,
+        scopes: ['openid', 'email', 'profile'],
+      });
+      setIsInitialized(true);
+    }
+  }, []);
+
+  const signIn = async (): Promise<string | null> => {
+    if (!isInitialized) {
+      throw new Error('Google Sign-In not initialized');
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Check if play services are available (Android only)
+      if (Platform.OS === 'android') {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      }
+
+      // Sign in
+      const userInfo = await GoogleSignin.signIn();
+      
+      // Get tokens
+      const tokens = await GoogleSignin.getTokens();
+      
+      // Return the ID token
+      return tokens.idToken;
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        throw new Error('User cancelled');
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        throw new Error('Sign in already in progress');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        throw new Error('Google Play Services not available');
+      } else {
+        throw new Error(error.message || 'Google sign-in failed');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await GoogleSignin.signOut();
+    } catch (error) {
+      console.error('Google sign out error:', error);
+    }
+  };
+
+  return {
+    signIn,
+    signOut,
+    isLoading,
+    isInitialized,
+    isValidClientId: GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.includes('.apps.googleusercontent.com'),
+  };
+}
