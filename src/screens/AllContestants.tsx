@@ -1,4 +1,5 @@
 import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,9 +18,11 @@ interface Contestant {
 }
 
 const AllContestants = () => {
+  const { contestId, title } = useLocalSearchParams<{ contestId?: string; title?: string }>();
   const [contestants, setContestants] = useState<Contestant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pageTitle = title ? `${title} - Entries` : "All Contestants";
 
   useEffect(() => {
     const fetchContests = async () => {
@@ -27,22 +30,27 @@ const AllContestants = () => {
         // Fetch contests (not contestants/submissions) - users vote on contests
         const response = await authApi.getContests(50);
         if (response.success && response.data?.items) {
-          const contests = response.data.items;
-          
+          let contests = response.data.items;
+
+          // If contestId is provided, filter to show only that contest
+          if (contestId) {
+            contests = contests.filter((c: any) => (c._id || c.id) === contestId);
+          }
+
           // Get contest IDs for fetching vote counts
           const contestIds = contests.map((c: any) => c._id || c.id);
-          
+
           // Fetch vote counts from Vote model
           const voteCountsResponse = await authApi.getVoteCounts(contestIds);
           const voteCounts = voteCountsResponse.success ? voteCountsResponse.data?.voteCounts || {} : {};
-          
+
           // Transform contest data to match ContestantCard props
           const transformedContests = contests.map((contest: any) => {
             const organizer = contest.organizer || contest.organizerId || {};
-            const contestId = contest._id || contest.id;
-            
+            const id = contest._id || contest.id;
+
             return {
-              id: contestId,
+              id: id,
               // Use contest cover image
               image: contest.coverImageUrl || getImageUrl(null),
               // Use contest title
@@ -54,7 +62,7 @@ const AllContestants = () => {
               // Use organizer display name
               userName: organizer.displayName || 'Contest Organizer',
               // Use proper vote count from Vote model (not submissionCount)
-              votes: voteCounts[contestId] || 0,
+              votes: voteCounts[id] || 0,
             };
           });
           setContestants(transformedContests);
@@ -128,7 +136,7 @@ const AllContestants = () => {
           colors={["#f0f4ff", "#ffffff"]}
           style={StyleSheet.absoluteFill}
         />
-        <Header title="All Contestants" backgroundColor="transparent" />
+        <Header title={pageTitle} backgroundColor="transparent" />
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
@@ -146,7 +154,7 @@ const AllContestants = () => {
           colors={["#f0f4ff", "#ffffff"]}
           style={StyleSheet.absoluteFill}
         />
-        <Header title="All Contestants" backgroundColor="transparent" />
+        <Header title={pageTitle} backgroundColor="transparent" />
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
@@ -163,23 +171,27 @@ const AllContestants = () => {
         colors={["#f0f4ff", "#ffffff"]}
         style={StyleSheet.absoluteFill}
       />
-      <Header title="All Contestants" backgroundColor="transparent" />
+      <Header title={pageTitle} backgroundColor="transparent" />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {contestants.map((contestant) => (
-          <ContestantCard
-            key={contestant.id}
-            image={contestant.image}
-            title={contestant.title}
-            description={contestant.description}
-            avatar={contestant.avatar}
-            userName={contestant.userName}
-            votes={contestant.votes}
-            onVote={() => handleVote(contestant.id, contestant.title)}
-          />
-        ))}
+        {contestId && contestants.length === 0 ? (
+          <Text style={styles.emptyText}>No entries found for this contest.</Text>
+        ) : (
+          contestants.map((contestant) => (
+            <ContestantCard
+              key={contestant.id}
+              image={contestant.image}
+              title={contestant.title}
+              description={contestant.description}
+              avatar={contestant.avatar}
+              userName={contestant.userName}
+              votes={contestant.votes}
+              onVote={() => handleVote(contestant.id, contestant.title)}
+            />
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -204,6 +216,13 @@ const styles = StyleSheet.create({
     color: '#FF0000',
     textAlign: 'center',
     marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#667085',
+    textAlign: 'center',
+    marginTop: 40,
     paddingHorizontal: 20,
   },
 });

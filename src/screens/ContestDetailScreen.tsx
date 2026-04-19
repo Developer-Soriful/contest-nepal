@@ -161,7 +161,7 @@ const Contest_Detail_Screen = () => {
   const handleViewEntries = useCallback(() => {
     if (!contest) return;
     router.push({
-      pathname: "/contest-submissions",
+      pathname: "/all-contestants",
       params: { contestId: contest.id, title: contest.title },
     } as any);
   }, [contest, router]);
