@@ -15,7 +15,7 @@ export function useGoogleAuthNative() {
       GoogleSignin.configure({
         webClientId: GOOGLE_CLIENT_ID,
         iosClientId: Platform.OS === 'ios' ? GOOGLE_IOS_CLIENT_ID : undefined,
-        offlineAccess: true,
+        offlineAccess: false,
         scopes: ['openid', 'email', 'profile'],
       });
       setIsInitialized(true);
@@ -35,13 +35,19 @@ export function useGoogleAuthNative() {
         await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       }
 
-      // Sign in
-      const userInfo = await GoogleSignin.signIn();
-      
-      // Get tokens
+      // Clear cached Google session so the native account chooser always opens.
+      await GoogleSignin.signOut().catch(() => undefined);
+
+      // Open the native Google account chooser.
+      await GoogleSignin.signIn();
+
+      // The backend already supports verifying Google ID tokens directly.
       const tokens = await GoogleSignin.getTokens();
-      
-      // Return the ID token
+
+      if (!tokens.idToken) {
+        throw new Error('Google Sign-In did not return an ID token');
+      }
+
       return tokens.idToken;
     } catch (error: any) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
@@ -71,6 +77,6 @@ export function useGoogleAuthNative() {
     signOut,
     isLoading,
     isInitialized,
-    isValidClientId: GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.includes('.apps.googleusercontent.com'),
+    isValidClientId: !!GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.includes('.apps.googleusercontent.com'),
   };
 }

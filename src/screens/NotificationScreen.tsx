@@ -1,78 +1,50 @@
-import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { import_img } from "@/assets/import_img";
 import Header from "@/src/components/Header";
+import { useNotificationContext } from "@/src/contexts/NotificationContext";
+import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useCallback } from "react";
 import {
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-interface NotificationData {
-  id: string;
-  title: string;
-  message: string;
-  time: string;
-  category: "Today" | "Yesterday" | "Earlier";
-  type: string;
+// Helper to format timestamp to relative time
+function getRelativeTime(timestamp: string): string {
+  const now = new Date();
+  const date = new Date(timestamp);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? "s" : ""} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  return date.toLocaleDateString();
 }
 
-const notifications: NotificationData[] = [
-  {
-    id: "1",
-    title: "Prize Claimed Successfully!",
-    message:
-      "Congratulations! Your prize for the 'Gaming Setup Giveaway' has been processed.",
-    time: "2 mins ago",
-    category: "Today",
-    type: "prize",
-  },
-  {
-    id: "2",
-    title: "New Contest Alert",
-    message:
-      "A new 'Wildlife Photography' contest is now live. Join now to win exciting rewards!",
-    time: "1 hour ago",
-    category: "Today",
-    type: "contest",
-  },
-  {
-    id: "3",
-    title: "Entry Approved",
-    message:
-      "Your submission for the 'UI/UX Design Challenge' has been approved by the judges.",
-    time: "Yesterday, 4:30 PM",
-    category: "Yesterday",
-    type: "entry",
-  },
-  {
-    id: "4",
-    title: "Contest Ending Soon",
-    message:
-      "Only 5 hours left for the 'Street Photography' contest. Don't miss out!",
-    time: "Yesterday, 10:00 AM",
-    category: "Yesterday",
-    type: "reminder",
-  },
-  {
-    id: "5",
-    title: "Reward Points Added",
-    message:
-      "You've earned 500 performance points for your active participation this week.",
-    time: "3 days ago",
-    category: "Earlier",
-    type: "reward",
-  },
-];
+// Helper to categorize by time
+function getCategory(timestamp: string): "Today" | "Yesterday" | "Earlier" {
+  const now = new Date();
+  const date = new Date(timestamp);
+  const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
 
-const NotificationItem = ({ item }: { item: NotificationData }) => {
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return "Earlier";
+}
+
+const NotificationItem = ({ item, onPress }: { item: { id: string; title: string; body: string; data?: Record<string, any>; timestamp: string; read: boolean }; onPress: () => void }) => {
   const getIcon = () => {
-    switch (item.type) {
+    const type = item.data?.type || "default";
+    switch (type) {
       case "prize":
         return {
           icon: <MaterialIcons name="card-giftcard" size={18} color="#fff" />,
@@ -110,64 +82,106 @@ const NotificationItem = ({ item }: { item: NotificationData }) => {
 
   return (
     <TouchableOpacity
-      style={styles.notificationCard}
+      style={[styles.notificationCard, item.read && styles.readCard]}
       activeOpacity={0.7}
-      onPress={() =>
-        router.push({
-          pathname: "/notification-detail",
-          params: {
-            id: item.id,
-            title: item.title,
-            message: item.message,
-            time: item.time,
-            category: item.type,
-          },
-        })
-      }
+      onPress={() => {
+        onPress();
+        // Navigate based on notification type
+        if (item.data?.contestId) {
+          router.push(`/contest-detail?id=${item.data.contestId}`);
+        }
+      }}
     >
       <View style={styles.cardHeader}>
         <View style={[styles.iconCircle, { backgroundColor: bg }]}>
           {icon}
         </View>
-        <Text style={styles.title}>{item.title}</Text>
+        <View style={styles.titleContainer}>
+          <Text style={[styles.title, item.read && styles.readTitle]}>
+            {item.title}
+          </Text>
+          {!item.read && <View style={styles.unreadDot} />}
+        </View>
       </View>
       <View style={styles.cardContent}>
-        <Text style={styles.message}>{item.message}</Text>
-        <Text style={styles.time}>{item.time}</Text>
+        <Text style={[styles.message, item.read && styles.readMessage]}>
+          {item.body}
+        </Text>
+        <Text style={styles.time}>{getRelativeTime(item.timestamp)}</Text>
       </View>
     </TouchableOpacity>
   );
 };
 
 const NotificationScreen = () => {
-  const categories: NotificationData["category"][] = [
-    "Today",
-    "Yesterday",
-    "Earlier",
-  ];
+  const { notifications, unreadCount, markAsRead, refreshNotifications } = useNotificationContext();
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshNotifications();
+    setRefreshing(false);
+  }, [refreshNotifications]);
+
+  // Group notifications by category
+  const groupedNotifications = notifications.reduce((acc, notification) => {
+    const category = getCategory(notification.timestamp);
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(notification);
+    return acc;
+  }, {} as Record<string, typeof notifications>);
+
+  const categories = ["Today", "Yesterday", "Earlier"] as const;
+
+  // Empty state
+  if (notifications.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Header
+          title={`Notifications${unreadCount > 0 ? ` (${unreadCount})` : ""}`}
+          backgroundColor="transparent"
+          showLeftIcon={true}
+        />
+        <View style={styles.emptyContainer}>
+          <Ionicons name="notifications-off-outline" size={64} color="#98A2B3" />
+          <Text style={styles.emptyTitle}>No Notifications Yet</Text>
+          <Text style={styles.emptySubtitle}>
+            You&apos;ll see updates about contests, prizes, and more here.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="Notifications"
+        title={`Notifications${unreadCount > 0 ? ` (${unreadCount})` : ""}`}
         backgroundColor="transparent"
         showLeftIcon={true}
       />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {categories.map((category) => {
-          const filteredItems = notifications.filter(
-            (n) => n.category === category,
-          );
-          if (filteredItems.length === 0) return null;
+          const items = groupedNotifications[category];
+          if (!items || items.length === 0) return null;
 
           return (
             <View key={category} style={styles.section}>
               <Text style={styles.sectionHeader}>{category}</Text>
-              {filteredItems.map((item) => (
-                <NotificationItem key={item.id} item={item} />
+              {items.map((item) => (
+                <NotificationItem
+                  key={item.id}
+                  item={item}
+                  onPress={() => {
+                    void markAsRead(item.id);
+                  }}
+                />
               ))}
             </View>
           );
@@ -212,6 +226,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 5,
   },
+  readCard: {
+    backgroundColor: "#F9FAFB",
+    borderColor: "#E5E7EB",
+  },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -225,24 +243,64 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
+  titleContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   title: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1D2939",
+    flex: 1,
+  },
+  readTitle: {
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#A30000",
+    marginLeft: 8,
   },
   cardContent: {
-    paddingLeft: 44, // 32 (icon) + 12 (margin)
+    paddingLeft: 44,
   },
   message: {
     fontSize: 14,
     color: "#4F586D",
     lineHeight: 20,
   },
+  readMessage: {
+    color: "#9CA3AF",
+  },
   time: {
     fontSize: 13,
     color: "#5B6477",
     marginTop: 8,
     fontWeight: "700",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#374151",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });
 

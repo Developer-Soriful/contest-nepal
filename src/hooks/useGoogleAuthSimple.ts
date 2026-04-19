@@ -3,7 +3,11 @@ import { useState } from 'react';
 import { Alert } from 'react-native';
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
-const GOOGLE_REDIRECT_URI = 'https://basically-matching-continued-stat.trycloudflare.com/auth/callback';
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+const GOOGLE_OAUTH_CALLBACK_URL =
+  process.env.EXPO_PUBLIC_GOOGLE_REDIRECT_URI ||
+  `${API_BASE_URL}/auth/callback`;
+const APP_REDIRECT_URI = 'contestnepal://auth/callback';
 
 // PKCE helpers
 const generateCodeVerifier = () => {
@@ -32,12 +36,16 @@ export function useGoogleAuthSimple() {
   // Debug: Show actual config values
   console.log('=== Google OAuth Debug ===');
   console.log('Client ID:', GOOGLE_CLIENT_ID);
-  console.log('Redirect URI:', GOOGLE_REDIRECT_URI);
+  console.log('OAuth Callback URL:', GOOGLE_OAUTH_CALLBACK_URL);
+  console.log('App Redirect URI:', APP_REDIRECT_URI);
   console.log('API URL:', process.env.EXPO_PUBLIC_API_URL);
 
   const signIn = async (): Promise<string | null> => {
     if (!GOOGLE_CLIENT_ID) {
       throw new Error('Google Client ID not configured');
+    }
+    if (!API_BASE_URL) {
+      throw new Error('API URL not configured');
     }
 
     setIsLoading(true);
@@ -53,7 +61,7 @@ export function useGoogleAuthSimple() {
       // Build Google OAuth URL
       const params = new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: GOOGLE_REDIRECT_URI,
+        redirect_uri: GOOGLE_OAUTH_CALLBACK_URL,
         response_type: 'code',
         scope: 'openid email profile',
         state: state,
@@ -65,8 +73,8 @@ export function useGoogleAuthSimple() {
 
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 
-      // Open system browser (NOT WebView - Google blocks WebView)
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, GOOGLE_REDIRECT_URI);
+      // Google returns to the backend callback, which immediately deep-links back into the app.
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, APP_REDIRECT_URI);
 
       console.log('Browser result:', result);
       
@@ -82,7 +90,7 @@ export function useGoogleAuthSimple() {
         console.log('Parsed params:', { code: !!code, returnedState, error, errorDescription });
 
         if (error) {
-          const errorMsg = `Error: ${error}\n\nDescription: ${errorDescription || 'None'}\n\nRedirect URI used:\n${GOOGLE_REDIRECT_URI}`;
+          const errorMsg = `Error: ${error}\n\nDescription: ${errorDescription || 'None'}\n\nOAuth callback URL:\n${GOOGLE_OAUTH_CALLBACK_URL}`;
           Alert.alert('Google OAuth Error', errorMsg);
           throw new Error(`Google auth error: ${error} - ${errorDescription || 'No details'}`);
         }
@@ -93,7 +101,7 @@ export function useGoogleAuthSimple() {
           return JSON.stringify({
             code,
             codeVerifier,
-            redirectUri: GOOGLE_REDIRECT_URI,
+            redirectUri: GOOGLE_OAUTH_CALLBACK_URL,
           });
         } else if (!code) {
           throw new Error('No authorization code in response');

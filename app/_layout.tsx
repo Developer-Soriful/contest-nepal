@@ -1,4 +1,5 @@
 import { AuthProvider } from "@/src/contexts/AuthContext";
+import { NotificationProvider } from "@/src/contexts/NotificationContext";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
@@ -67,22 +68,24 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <SafeAreaProvider>
-        <View style={{ flex: 1 }}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-          </Stack>
-          <View pointerEvents="none" style={styles.globalTopShadow}>
-            <Image
-              source={require("../assets/images/global_shadow.png")}
-              style={{ width: "100%", height: "100%" }}
-              resizeMode="stretch"
-            />
+      <NotificationProvider>
+        <SafeAreaProvider>
+          <View style={{ flex: 1 }}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+            </Stack>
+            <View pointerEvents="none" style={styles.globalTopShadow}>
+              <Image
+                source={require("../assets/images/global_shadow.png")}
+                style={{ width: "100%", height: "100%" }}
+                resizeMode="stretch"
+              />
+            </View>
           </View>
-        </View>
-      </SafeAreaProvider>
+        </SafeAreaProvider>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

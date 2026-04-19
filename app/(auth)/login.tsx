@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { import_img } from '../../assets/import_img';
 import CustomGradientButton from '../../src/components/CustomGradientButton';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { useGoogleAuthSimple } from '../../src/hooks/useGoogleAuthSimple';
+import { useGoogleAuth } from '../../src/hooks/useGoogleAuth';
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -27,7 +27,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   
   const { login, socialLogin, isLoading: authLoading } = useAuth();
-  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuthSimple();
+  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuth();
 
   const handleGoogleLogin = async () => {
     try {

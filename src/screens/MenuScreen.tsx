@@ -31,8 +31,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+// Types
+interface MenuItemProps {
+  icon: React.ReactNode;
+  title: string;
+  onPress: () => void;
+  isDestructive?: boolean;
+}
+
+interface SectionProps {
+  title: string;
+  children: React.ReactNode;
+}
+
 // Animated Menu Item Component
-const MenuItem = ({ icon, title, onPress, isDestructive = false }: any) => {
+const MenuItem: React.FC<MenuItemProps> = ({ icon, title, onPress, isDestructive = false }) => {
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
 
@@ -67,12 +80,12 @@ const MenuItem = ({ icon, title, onPress, isDestructive = false }: any) => {
           {title}
         </Text>
       </View>
-      <Ionicons name="chevron-forward" size={18} color="#98A2B3" />
+      <Ionicons name="chevron-forward" size={20} color="#999" />
     </AnimatedPressable>
   );
 };
 
-const Section = ({ title, children }: any) => (
+const Section: React.FC<SectionProps> = ({ title, children }) => (
   <View style={styles.section}>
     <Text style={styles.sectionTitle}>{title}</Text>
     <View style={styles.sectionContent}>{children}</View>
@@ -108,7 +121,7 @@ const MenuScreen = () => {
       } else {
         Alert.alert("Error", response.error?.title || "Failed to delete account");
       }
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "An unexpected error occurred");
     } finally {
       setIsDeleting(false);
@@ -129,11 +142,10 @@ const MenuScreen = () => {
       if (response.success) {
         await refreshUser();
       } else {
-        // Revert on failure
         setNotificationsEnabled(!value);
         Alert.alert("Error", response.error?.title || "Failed to update notification settings");
       }
-    } catch (error) {
+    } catch {
       setNotificationsEnabled(!value);
       Alert.alert("Error", "An unexpected error occurred");
     } finally {
@@ -163,14 +175,17 @@ const MenuScreen = () => {
                 <Octicons name="bell" size={18} color="#667085" />
                 <Text style={styles.menuItemText}>Push Notifications</Text>
               </View>
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={toggleNotifications}
-                disabled={isUpdatingNotifications}
-                trackColor={{ false: "#D1D5DB", true: "#34D399" }}
-                thumbColor="#FFF"
-                ios_backgroundColor="#D1D5DB"
-              />
+              {isUpdatingNotifications ? (
+                <ActivityIndicator size="small" color="#990009" />
+              ) : (
+                <Switch
+                  value={notificationsEnabled}
+                  onValueChange={toggleNotifications}
+                  trackColor={{ false: "#E5E5E5", true: "#990009" }}
+                  thumbColor="#FFFFFF"
+                  ios_backgroundColor="#E5E5E5"
+                />
+              )}
             </View>
             <View style={styles.divider} />
             <MenuItem

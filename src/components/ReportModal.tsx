@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -13,14 +14,17 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { authApi } from "../services/api";
+import { authApi, type ReportReason } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 import CustomGradientButton from "./CustomGradientButton";
+
+type ReportableTargetType = 'CONTEST' | 'USER' | 'SUBMISSION' | 'VOTE';
 
 interface ReportModalProps {
   isVisible: boolean;
   onClose: () => void;
   targetName?: string;
-  targetType: 'CONTEST' | 'USER' | 'SUBMISSION' | 'VOTE' | 'Other';
+  targetType: ReportableTargetType | 'Other';
   targetId: string;
 }
 
@@ -31,7 +35,7 @@ const REPORT_REASONS = [
   { label: "Scam or Fraud", value: "fraud" },
   { label: "Intellectual Property Violation", value: "copyright" },
   { label: "Other", value: "other" },
-];
+] as const satisfies ReadonlyArray<{ label: string; value: ReportReason }>;
 
 const ReportModal: React.FC<ReportModalProps> = ({
   isVisible,
@@ -40,31 +44,65 @@ const ReportModal: React.FC<ReportModalProps> = ({
   targetType,
   targetId,
 }) => {
-  const [selectedReason, setSelectedReason] = useState<{ label: string; value: string } | null>(null);
+  const { isAuthenticated } = useAuth();
+  const [selectedReason, setSelectedReason] = useState<(typeof REPORT_REASONS)[number] | null>(null);
   const [additionalContext, setAdditionalContext] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
   const handleSubmit = async () => {
+    const { accessToken } = await authApi.getTokens();
+
+    if (!isAuthenticated || !accessToken) {
+      Alert.alert(
+        'Login Required',
+        'Please log in to submit a report.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Log In',
+            onPress: () => {
+              handleClose();
+              router.push('/login');
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     if (!selectedReason) {
       Alert.alert('Error', 'Please select a reason for reporting');
       return;
     }
 
+    const trimmedContext = additionalContext.trim();
+
+    if (targetType === 'Other' && trimmedContext.length < 10) {
+      Alert.alert('Error', 'Please provide a bit more detail so our team can review your feedback.');
+      return;
+    }
+
     setIsSubmitting(true);
-    
+
     try {
-      console.log('[ReportModal] Submitting report:', { targetType, targetId, reason: selectedReason.value, description: additionalContext });
-      
-      const response = await authApi.createReport(
-        targetType,
-        targetId,
-        selectedReason.value,
-        additionalContext.trim() || undefined
-      );
-      
+      console.log('[ReportModal] Submitting report:', { targetType, targetId, reason: selectedReason.value, description: trimmedContext });
+
+      const response = targetType === 'Other'
+        ? await authApi.createSupportTicket({
+            subject: `App Feedback: ${selectedReason.label}`,
+            message: trimmedContext,
+            priority: 'low',
+          })
+        : await authApi.createReport({
+            targetType,
+            targetId,
+            reason: selectedReason.value,
+            description: trimmedContext || undefined,
+          });
+
       console.log('[ReportModal] Report response:', response);
-      
+
       if (response.success) {
         setIsSuccess(true);
         // Auto close after 2 seconds
@@ -203,6 +241,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
                       <CustomGradientButton
                         title={isSubmitting ? "" : "Submit Report"}
                         onPress={handleSubmit}
+                        disabled={!selectedReason || isSubmitting}
                         containerStyle={{
                           borderRadius: 12,
                           opacity: selectedReason ? 1 : 0.5,

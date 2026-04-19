@@ -1,14 +1,15 @@
 import { import_img } from "@/assets/import_img";
 import { AUTH_EVENTS, useAuth } from "@/src/contexts/AuthContext";
+import { useNotificationContext } from "@/src/contexts/NotificationContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, DeviceEventEmitter, Image, Platform, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, DeviceEventEmitter, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const HomeHeader: React.FC = () => {
   const [avatarError, setAvatarError] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState(Date.now());
-  const { user, isLoading, refreshUser } = useAuth();
+  const { user, isLoading } = useAuth();
+  const { unreadCount, refreshNotifications } = useNotificationContext();
 
   // Get real user data from AuthContext
   const userName = user?.profile?.displayName || user?.email?.split('@')[0] || "User";
@@ -16,10 +17,9 @@ const HomeHeader: React.FC = () => {
 
   // Listen for user update events from AuthContext
   useEffect(() => {
-    const subscription = DeviceEventEmitter.addListener(AUTH_EVENTS.USER_UPDATED, (updatedUser) => {
+    const subscription = DeviceEventEmitter.addListener(AUTH_EVENTS.USER_UPDATED, () => {
       console.log('[HomeHeader] Received USER_UPDATED event');
       setAvatarError(false);
-      setLastUpdate(Date.now()); // Force re-render
     });
 
     return () => {
@@ -30,10 +30,10 @@ const HomeHeader: React.FC = () => {
   // Reset avatarError when component is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('[HomeHeader] Focused, resetting avatarError and refreshing');
+      console.log('[HomeHeader] Focused, resetting avatarError and refreshing notifications');
       setAvatarError(false);
-      refreshUser(); // Auto-refresh on focus
-    }, [])
+      void refreshNotifications();
+    }, [refreshNotifications])
   );
   return (
     <View
@@ -158,23 +158,41 @@ const HomeHeader: React.FC = () => {
       >
         <View>
           <Ionicons name="notifications-outline" size={24} color="#990009" />
-          <View
-            style={{
-              position: "absolute",
-              top: 2,
-              right: 3,
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: "#990009",
-              borderWidth: 1.5,
-              borderColor: "#FFF",
-            }}
-          />
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  badge: {
+    position: "absolute",
+    top: -6,
+    right: -10,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    backgroundColor: "#990009",
+    borderWidth: 2,
+    borderColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: {
+    color: "#FFF",
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+});
 
 export default HomeHeader;

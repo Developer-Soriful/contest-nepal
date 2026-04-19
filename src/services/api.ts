@@ -32,6 +32,13 @@ const STORAGE_KEYS = {
   USER_DATA: 'user_data',
 };
 
+const APP_ALLOWED_ROLE = 'participant';
+const APP_ROLE_RESTRICTED_ERROR = {
+  title: 'This app is only available for participant accounts. Please use the organizer or admin platform for this account.',
+  status: 403,
+  code: 'APP_ROLE_NOT_ALLOWED',
+};
+
 // API Response Types
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -192,6 +199,51 @@ export interface Contest {
     submissionCount?: number;
   };
 }
+
+const isParticipantAppUser = (user?: AuthResponse['user'] | null): boolean =>
+  user?.role === APP_ALLOWED_ROLE;
+
+export type ReportReason = 'inappropriate' | 'spam' | 'fraud' | 'copyright' | 'other';
+export type ReportTargetType = 'CONTEST' | 'USER' | 'SUBMISSION' | 'VOTE';
+
+export interface CreateReportRequest {
+  targetType: ReportTargetType;
+  targetId: string;
+  reason: ReportReason;
+  description?: string;
+}
+
+export interface ReportItem {
+  id: string;
+  category: 'Contest' | 'User' | 'Submission' | 'Vote' | 'Other';
+  title: string;
+  reportedBy: string;
+  target: string;
+  reason: string;
+  date: string;
+  status: 'New' | 'Reviewed' | 'Dismissed';
+  adminNote?: string;
+}
+
+export interface CreateSupportTicketRequest {
+  subject: string;
+  message: string;
+  priority?: 'low' | 'medium' | 'high';
+}
+
+const reportReasonSchema = z.enum(['inappropriate', 'spam', 'fraud', 'copyright', 'other']);
+const createReportSchema = z.object({
+  targetType: z.enum(['CONTEST', 'USER', 'SUBMISSION', 'VOTE']),
+  targetId: z.string().trim().min(1),
+  reason: reportReasonSchema,
+  description: z.string().trim().max(2000).optional(),
+});
+
+const createSupportTicketSchema = z.object({
+  subject: z.string().trim().min(5).max(200),
+  message: z.string().trim().min(10).max(5000),
+  priority: z.enum(['low', 'medium', 'high']).default('low'),
+});
 
 // HTTP Client with token management
 class ApiClient {
@@ -433,6 +485,14 @@ export const authApi = {
     const response = await apiClient.post<AuthResponse>('/v1/auth/register', validatedData);
 
     if (response.success && response.data) {
+      if (!isParticipantAppUser(response.data.user)) {
+        await apiClient.clearTokens();
+        return {
+          success: false,
+          error: APP_ROLE_RESTRICTED_ERROR,
+        };
+      }
+
       // Only set tokens if they exist (email verification not required)
       if (response.data.tokens) {
         await apiClient.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken);
@@ -456,6 +516,22 @@ export const authApi = {
     console.log('Login API response:', JSON.stringify(response, null, 2));
 
     if (response.success && response.data) {
+      if (!isParticipantAppUser(response.data.user)) {
+        await apiClient.clearTokens();
+        return {
+          success: false,
+          error: APP_ROLE_RESTRICTED_ERROR,
+        };
+      }
+
+      if (!response.data.tokens?.accessToken || !response.data.tokens?.refreshToken) {
+        await apiClient.clearTokens();
+        return {
+          success: false,
+          error: { title: 'Login succeeded but no auth tokens were returned', status: 500 },
+        };
+      }
+
       console.log('Access token exists:', !!response.data.tokens?.accessToken);
       console.log('Refresh token exists:', !!response.data.tokens?.refreshToken);
 
@@ -643,6 +719,14 @@ export const authApi = {
     const response = await apiClient.get<AuthResponse['user']>('/v1/auth/me');
 
     if (response.success && response.data) {
+      if (!isParticipantAppUser(response.data)) {
+        await apiClient.clearTokens();
+        return {
+          success: false,
+          error: APP_ROLE_RESTRICTED_ERROR,
+        };
+      }
+
       // Normalize avatar URL
       if (response.data.profile) {
         response.data.profile.avatarUrl = getImageUrl(response.data.profile.avatarUrl);
@@ -650,6 +734,52 @@ export const authApi = {
     }
 
     return response;
+  },
+
+  async createReport(data: CreateReportRequest): Promise<ApiResponse<ReportItem>> {
+    const validatedData = createReportSchema.parse({
+      ...data,
+      description: data.description?.trim() || undefined,
+    });
+    const response = await apiClient.post<{
+      success: boolean;
+      data: ReportItem;
+      message?: string;
+    }>('/v1/reports', validatedData);
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error,
+      };
+    }
+
+    if (!response.data) {
+      return {
+        success: false,
+        error: {
+          title: 'Invalid report response',
+          status: 500,
+        },
+      };
+    }
+
+    return {
+      success: response.data.success,
+      data: response.data.data,
+      message: response.data.message,
+    };
+  },
+
+  async createSupportTicket(data: CreateSupportTicketRequest): Promise<ApiResponse<any>> {
+    const validatedData = createSupportTicketSchema.parse({
+      ...data,
+      subject: data.subject.trim(),
+      message: data.message.trim(),
+      priority: data.priority ?? 'low',
+    });
+
+    return apiClient.post<any>('/v1/support/tickets', validatedData);
   },
 
   // Update user profile (name, phone, bio, location, locale)
@@ -1343,6 +1473,22 @@ export const authApi = {
       });
 
       if (response.success && response.data) {
+        if (!isParticipantAppUser(response.data.user)) {
+          await apiClient.clearTokens();
+          return {
+            success: false,
+            error: APP_ROLE_RESTRICTED_ERROR,
+          };
+        }
+
+        if (!response.data.tokens?.accessToken || !response.data.tokens?.refreshToken) {
+          await apiClient.clearTokens();
+          return {
+            success: false,
+            error: { title: 'Social login succeeded but no auth tokens were returned', status: 500 },
+          };
+        }
+
         // Store tokens
         if (response.data.tokens) {
           await apiClient.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken);

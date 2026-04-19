@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomGradientButton from '../../src/components/CustomGradientButton';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { useGoogleAuthSimple } from '../../src/hooks/useGoogleAuthSimple';
+import { useGoogleAuth } from '../../src/hooks/useGoogleAuth';
 
 export default function Signup() {
   const [name, setName] = useState("");
@@ -28,7 +28,7 @@ export default function Signup() {
   const [isLoading, setIsLoading] = useState(false);
   
   const { register, socialLogin, isLoading: authLoading } = useAuth();
-  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuthSimple();
+  const { signIn: googleSignIn, isLoading: googleLoading } = useGoogleAuth();
 
   const handleGoogleSignup = async () => {
     try {

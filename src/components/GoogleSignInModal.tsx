@@ -3,17 +3,21 @@ import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 
 // Google OAuth configuration
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
-const GOOGLE_REDIRECT_URI = 'https://auth.expo.io/@anonymous/contest-nepal';
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/$/, '');
+const GOOGLE_OAUTH_CALLBACK_URL =
+  process.env.EXPO_PUBLIC_GOOGLE_REDIRECT_URI ||
+  `${API_BASE_URL}/auth/callback`;
+const APP_REDIRECT_URI = 'contestnepal://auth/callback';
 
 // PKCE Helper functions
 const generateCodeVerifier = (): string => {
@@ -71,7 +75,7 @@ export function GoogleSignInModal({ visible, onClose, onSuccess, onError }: Goog
       
       const url = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
         client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: GOOGLE_REDIRECT_URI,
+        redirect_uri: GOOGLE_OAUTH_CALLBACK_URL,
         response_type: 'code',
         scope: 'openid email profile',
         state: state,
@@ -87,9 +91,16 @@ export function GoogleSignInModal({ visible, onClose, onSuccess, onError }: Goog
 
   const handleNavigationStateChange = (navState: any) => {
     const { url } = navState;
+    return handleNavigation(url);
+  };
 
-    // Check if we reached the redirect URI
-    if (url && url.startsWith(GOOGLE_REDIRECT_URI)) {
+  const handleNavigation = (url?: string | null) => {
+    if (!url) {
+      return true;
+    }
+
+    // Check if the backend redirected back into the app.
+    if (url && url.startsWith(APP_REDIRECT_URI)) {
       // Parse query params for authorization code (PKCE flow)
       const queryIndex = url.indexOf('?');
       if (queryIndex !== -1) {
@@ -100,7 +111,7 @@ export function GoogleSignInModal({ visible, onClose, onSuccess, onError }: Goog
 
         if (error) {
           onError(new Error(`Google auth error: ${error}`));
-          return;
+          return false;
         }
 
         if (authCode) {
@@ -110,14 +121,17 @@ export function GoogleSignInModal({ visible, onClose, onSuccess, onError }: Goog
           const tokenData = JSON.stringify({
             code: authCode,
             codeVerifier: codeVerifier,
-            redirectUri: GOOGLE_REDIRECT_URI,
+            redirectUri: GOOGLE_OAUTH_CALLBACK_URL,
           });
           onSuccess(tokenData);
         } else {
           onError(new Error('No authorization code received from Google'));
         }
       }
+      return false;
     }
+
+    return true;
   };
 
   return (
@@ -166,6 +180,7 @@ export function GoogleSignInModal({ visible, onClose, onSuccess, onError }: Goog
                 onLoadStart={() => setIsLoading(true)}
                 onLoadEnd={() => setIsLoading(false)}
                 onNavigationStateChange={handleNavigationStateChange}
+                onShouldStartLoadWithRequest={(request) => handleNavigation(request.url)}
                 userAgent="Mozilla/5.0 (Linux; Android 10; Mobile; rv:91.0) Gecko/91.0 Firefox/91.0"
                 javaScriptEnabled={true}
                 domStorageEnabled={true}

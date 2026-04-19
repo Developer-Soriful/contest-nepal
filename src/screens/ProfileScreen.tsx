@@ -126,9 +126,10 @@ const Section: React.FC<SectionProps> = ({ title, children }) => {
 const ProfileScreen = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState(Date.now()); // Force re-render
 
   // Get real user data from AuthContext
   const { user, logout, isLoading, refreshUser } = useAuth();
@@ -144,11 +145,8 @@ const ProfileScreen = () => {
   };
 
   useEffect(() => {
-    const subscription = DeviceEventEmitter.addListener(AUTH_EVENTS.USER_UPDATED, (updatedUser) => {
-      console.log('[ProfileScreen] Received USER_UPDATED event');
+    const subscription = DeviceEventEmitter.addListener(AUTH_EVENTS.USER_UPDATED, () => {
       setAvatarError(false);
-      // Force re-render
-      setLastUpdate(Date.now());
     });
 
     return () => {
@@ -159,19 +157,11 @@ const ProfileScreen = () => {
   useFocusEffect(
     useCallback(() => {
       setAvatarError(false);
-      // Refresh user data when screen comes into focus
-      console.log('[ProfileScreen] Screen focused - refreshing user data');
-      refreshUser().then(() => {
-        console.log('[ProfileScreen] User data refreshed on focus, name:', user?.profile?.displayName);
-      });
-    }, [])
+      refreshUser();
+    }, [refreshUser])
   );
 
   // Navigation Handlers
-  const handleBack = () => {
-    router.back();
-  };
-
   const handleEditProfile = () => {
     router.push("/edit-profile");
   };
@@ -185,7 +175,7 @@ const ProfileScreen = () => {
   };
 
   const handleDashboard = () => {
-    router.push("/(tabs)");
+    router.push("/dashboard");
   };
 
   const handlePrivacyPolicy = () => {
@@ -211,20 +201,35 @@ const ProfileScreen = () => {
   };
 
   const handleDeleteAccount = () => {
-    console.log("Delete Account clicked");
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteAccount = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await authApi.deleteAccount();
+      if (response.success) {
+        setShowDeleteModal(false);
+        await logout();
+        router.replace("/(auth)/login");
+        Alert.alert("Account Deleted", "Your account has been permanently removed.");
+      } else {
+        Alert.alert("Error", response.error?.title || "Failed to delete account. Please try again.");
+      }
+    } catch {
+      Alert.alert("Error", "An unexpected error occurred. Please try again later.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleAvatarPress = async () => {
-    console.log("ProfileScreen - Avatar pressed, opening image picker");
-    
-    // Request permission
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission Required', 'Please allow access to your photo library to change your avatar.');
       return;
     }
 
-    // Open image picker
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -234,13 +239,8 @@ const ProfileScreen = () => {
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const selectedImage = result.assets[0].uri;
-      console.log('ProfileScreen - Image selected:', selectedImage);
-      
-      // Show loading state
       setAvatarError(false);
       
-      // Upload avatar
-      console.log('ProfileScreen - Uploading avatar...');
       const avatarResponse = await authApi.uploadAvatar(selectedImage);
       
       if (!avatarResponse.success) {
@@ -249,15 +249,9 @@ const ProfileScreen = () => {
       }
       
       const avatarUrl = avatarResponse.data?.avatarUrl;
-      console.log('ProfileScreen - Avatar uploaded, URL:', avatarUrl);
-      
-      // Update profile with new avatar
-      const profileResponse = await authApi.updateProfile({
-        avatarUrl,
-      });
+      const profileResponse = await authApi.updateProfile({ avatarUrl });
       
       if (profileResponse.success && profileResponse.data) {
-        // Update stored user data
         await SafeAsyncStorage.setItem('user_data', JSON.stringify(profileResponse.data));
         await refreshUser();
         Alert.alert('Success', 'Profile picture updated successfully!');
@@ -269,19 +263,14 @@ const ProfileScreen = () => {
 
   // Pull-to-refresh handler
   const onRefresh = useCallback(async () => {
-    console.log('[ProfileScreen] Pull to refresh triggered');
     setRefreshing(true);
     try {
-      console.log('[ProfileScreen] Before refresh - name:', user?.profile?.displayName);
       await refreshUser();
-      // Force re-render by updating timestamp
-      setLastUpdate(Date.now());
-      console.log('[ProfileScreen] After refresh - timestamp updated');
       setAvatarError(false);
     } finally {
       setRefreshing(false);
     }
-  }, [refreshUser, user?.profile?.displayName]);
+  }, [refreshUser]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -312,13 +301,10 @@ const ProfileScreen = () => {
             <View style={styles.avatarContainer}>
               {userData.avatar && !avatarError ? (
                 <Image
-                  key={userData.avatar} // Force re-render when avatar URL changes
+                  key={userData.avatar}
                   source={{ uri: userData.avatar }}
                   style={styles.avatar}
-                  onError={() => {
-                    console.log('Profile - Failed to load remote avatar, showing fallback');
-                    setAvatarError(true);
-                  }}
+                  onError={() => setAvatarError(true)}
                 />
               ) : (
                 <Image
@@ -435,7 +421,7 @@ const ProfileScreen = () => {
           />
           <View style={styles.divider} />
           <MenuItem
-            icon={<Ionicons name="trash-outline" size={18} color="#FF6B6B" />}
+            icon={<Ionicons name="trash-outline" size={18} color="#DC2626" />}
             title="Delete Account"
             onPress={handleDeleteAccount}
             isDestructive
@@ -478,6 +464,52 @@ const ProfileScreen = () => {
                 onPress={confirmLogout}
               >
                 <Text style={styles.confirmButtonText}>Log Out</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showDeleteModal}
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <LinearGradient
+              colors={["#A30000", "#D21F2A"]}
+              style={styles.modalIconContainer}
+            >
+              <Ionicons name="warning-outline" size={40} color="#FFF" />
+            </LinearGradient>
+
+            <Text style={styles.modalTitle}>Extreme Caution!</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to delete your account? This action is irreversible and you will lose access to all your participation history and rewards.
+            </Text>
+
+            <View style={styles.modalActionRow}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+              >
+                <Text style={styles.cancelButtonText}>Keep Account</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={confirmDeleteAccount}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>Yes, Delete</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>

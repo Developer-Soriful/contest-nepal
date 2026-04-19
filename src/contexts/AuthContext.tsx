@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Alert } from 'react-native';
 import SafeAsyncStorage from '../lib/SafeAsyncStorage';
 import { authApi, type ApiResponse, type AuthResponse, type RegisterRequest } from '../services/api';
@@ -17,6 +17,8 @@ const STORAGE_KEYS = {
   REFRESH_TOKEN: 'refresh_token',
   USER_DATA: 'user_data',
 };
+
+const APP_ALLOWED_ROLE = 'participant';
 
 // Auth Context Types
 interface AuthContextType {
@@ -63,6 +65,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Computed property
   const isAuthenticated = Boolean(user);
 
+  const isAllowedAppUser = (candidate: AuthResponse['user'] | null | undefined) =>
+    candidate?.role === APP_ALLOWED_ROLE;
+
   // Initialize auth state on mount
   useEffect(() => {
     initializeAuth();
@@ -94,6 +99,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (userData && accessToken) {
         // Restore user from storage immediately - this ensures user stays logged in
         const parsedUser = JSON.parse(userData);
+        if (!isAllowedAppUser(parsedUser)) {
+          console.log('Auth init - Non-participant session detected, clearing auth data');
+          await clearAuthData();
+          setIsLoading(false);
+          return;
+        }
         setUser(parsedUser);
         console.log('Auth init - User restored from storage');
 
@@ -104,6 +115,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setUser(response.data);
             SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data));
             console.log('Auth init - User data refreshed from API');
+          } else if (response.error?.code === 'APP_ROLE_NOT_ALLOWED') {
+            console.log('Auth init - Background refresh found non-participant account, clearing auth data');
+            clearAuthData();
           }
         }).catch(err => {
           console.log('Auth init - Background user refresh failed, keeping stored data:', err);
@@ -115,10 +129,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (refreshResponse.success && refreshResponse.data) {
           // Refresh succeeded, now get user
           const userResponse = await authApi.getCurrentUser();
-          if (userResponse.success && userResponse.data) {
+          if (userResponse.success && userResponse.data && isAllowedAppUser(userResponse.data)) {
             setUser(userResponse.data);
             await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userResponse.data));
             console.log('Auth init - User restored via token refresh');
+          } else {
+            console.log('Auth init - Refreshed session is not allowed in participant app, clearing auth data');
+            await clearAuthData();
           }
         } else {
           // Refresh failed - clear everything
@@ -167,8 +184,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await authApi.login({ email, password });
 
       if (response.success && response.data) {
-        setUser(response.data.user);
-        // Tokens are already set in authApi.login
+        if (response.data.tokens?.accessToken) {
+          setUser(response.data.user);
+        } else {
+          await clearAuthData();
+          return {
+            success: false,
+            error: { title: 'Login did not return a valid session', status: 500 },
+          };
+        }
       }
 
       return response;
@@ -221,7 +245,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await authApi.socialLogin(provider, token);
 
       if (response.success && response.data) {
-        setUser(response.data.user);
+        if (response.data.tokens?.accessToken) {
+          setUser(response.data.user);
+        } else {
+          await clearAuthData();
+          return {
+            success: false,
+            error: { title: 'Social login did not return a valid session', status: 500 },
+          };
+        }
       }
 
       return response;
@@ -423,7 +455,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return { success: false, error: { title: 'Failed to send', status: 500 } };
   };
 
-  const refreshUser = async (): Promise<void> => {
+  const refreshUser = useCallback(async (): Promise<void> => {
     try {
       console.log('[AuthContext] refreshUser called - fetching from API...');
       const response = await authApi.getCurrentUser();
@@ -437,11 +469,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.log('[AuthContext] User state updated and saved to storage');
       } else {
         console.log('[AuthContext] API response failed or no data:', response.error);
+        if (response.error?.code === 'APP_ROLE_NOT_ALLOWED') {
+          await clearAuthData();
+        }
       }
     } catch (error) {
       console.log('[AuthContext] Refresh user error:', error);
     }
-  };
+  }, []);
 
   const debugStorage = async () => {
     const [userData, accessToken, refreshToken] = await Promise.all([
@@ -456,7 +491,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     console.log('====================');
   };
 
-  const value: AuthContextType = {
+  const value: AuthContextType = useMemo(() => ({
     user,
     isLoading,
     isAuthenticated,
@@ -472,7 +507,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     changePassword,
     resetPassword,
     debugStorage,
-  };
+  }), [
+    user,
+    isLoading,
+    isAuthenticated,
+    login,
+    register,
+    socialLogin,
+    forgotPassword,
+    verifyOtp,
+    verifyEmail,
+    resendVerificationEmail,
+    logout,
+    refreshUser,
+    changePassword,
+    resetPassword,
+    debugStorage,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
