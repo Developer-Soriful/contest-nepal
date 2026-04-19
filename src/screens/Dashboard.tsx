@@ -612,17 +612,61 @@ const Dashboard = () => {
             </View>
 
             {/* Filtered Submissions List */}
-            {mySubmissionsData
-              .filter((item) => item.status === submissionFilter)
-              .map((item) => (
-                <SubmissionItem
-                  key={item.id}
-                  contestId={item.contestId}
-                  title={item.title}
-                  date={item.date}
-                  status={item.status}
-                />
-              ))}
+            {mySubmissionsData.filter((item) => item.status === submissionFilter).length === 0 ? (
+              <View style={{
+                alignItems: "center",
+                justifyContent: "center",
+                paddingVertical: 60,
+                paddingHorizontal: 30,
+              }}>
+                <View style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: "#F3F4F6",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: 20,
+                }}>
+                  <Text style={{ fontSize: 36 }}>
+                    {submissionFilter === "Approved" ? "✅" : submissionFilter === "Pending" ? "🕒" : "❌"}
+                  </Text>
+                </View>
+                <Text style={{
+                  fontSize: 18,
+                  fontWeight: "600",
+                  color: "#1F2937",
+                  marginBottom: 8,
+                  textAlign: "center",
+                }}>
+                  No {submissionFilter} Submissions
+                </Text>
+                <Text style={{
+                  fontSize: 14,
+                  color: "#6B7280",
+                  textAlign: "center",
+                  lineHeight: 20,
+                }}>
+                  {submissionFilter === "Approved"
+                    ? "You don't have any approved contest entries yet. Keep participating!"
+                    : submissionFilter === "Pending"
+                    ? "No pending submissions awaiting review. Check back later!"
+                    : "No rejected submissions. Great job keeping up with the guidelines!"}
+                </Text>
+              </View>
+            ) : (
+              mySubmissionsData
+                .filter((item) => item.status === submissionFilter)
+                .map((item) => (
+                  <SubmissionItem
+                    key={item.id}
+                    contestId={item.contestId}
+                    title={item.title}
+                    date={item.date}
+                    status={item.status}
+                  />
+                ))
+            )}
           </View>
         )}
         {activeTab === "Notification" && (
