@@ -1,7 +1,8 @@
 import { import_img } from "@/assets/import_img";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React from "react";
-import { Image, Text, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 
 interface PromotionalBannerProps {
   marginTop?: number;
@@ -12,6 +13,13 @@ const PromotionalBanner: React.FC<PromotionalBannerProps> = ({
   marginTop = 20,
   marginBottom = 0,
 }) => {
+  const handleJoinNowPress = () => {
+    // Drive users into the primary conversion flow: browsing active contests.
+    router.push({
+      pathname: "/all-contests",
+      params: { section: "all" },
+    });
+  };
   return (
     <View
       style={{
@@ -44,7 +52,10 @@ const PromotionalBanner: React.FC<PromotionalBannerProps> = ({
           The Gaming
           <Text style={{ color: "#990009" }}> Contest</Text> Hub
         </Text>
-        <View
+        <TouchableOpacity
+          onPress={handleJoinNowPress}
+          accessibilityRole="button"
+          accessibilityLabel="Join now and browse active contests"
           style={{
             display: "flex",
             flexDirection: "row",
@@ -65,7 +76,7 @@ const PromotionalBanner: React.FC<PromotionalBannerProps> = ({
           <View>
             <MaterialCommunityIcons name="play-pause" size={18} color="white" />
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
       <Image
         source={import_img.game_win}
