@@ -3,7 +3,7 @@ import { z } from 'zod';
 import SafeAsyncStorage from '../lib/SafeAsyncStorage';
 
 // API Configuration
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://chorus-jumping-interventions-therapeutic.trycloudflare.com';
 
 /**
  * Normalizes an image path from the backend into a full URL.
