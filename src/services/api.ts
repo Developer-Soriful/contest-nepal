@@ -1432,10 +1432,10 @@ export const authApi = {
 
   // Vote on a contest
   // Backend endpoint: POST /v1/contests/:id/vote
-  async voteOnContest(contestId: string): Promise<ApiResponse<{ voteCount: number }>> {
+  async voteOnContest(contestId: string): Promise<ApiResponse<{ voteCount: number; hasVoted: boolean }>> {
     try {
       console.log('API: Submitting vote for contest:', contestId);
-      const response = await apiClient.post<{ voteCount: number }>(`/v1/contests/${contestId}/vote`);
+      const response = await apiClient.post<{ voteCount: number; hasVoted: boolean }>(`/v1/contests/${contestId}/vote`);
       return response;
     } catch (error: any) {
       console.log('API: Error submitting vote for contest:', error);
@@ -1458,6 +1458,22 @@ export const authApi = {
       return {
         success: false,
         error: error?.response?.data?.error || { title: 'Failed to fetch vote counts', status: 500 },
+      };
+    }
+  },
+
+  // Get current user's vote statuses for multiple contests
+  // Backend endpoint: POST /v1/contests/vote-statuses
+  async getVoteStatuses(contestIds: string[]): Promise<ApiResponse<{ voteStatuses: Record<string, boolean> }>> {
+    try {
+      console.log('API: Fetching vote statuses for contests:', contestIds);
+      const response = await apiClient.post<{ voteStatuses: Record<string, boolean> }>('/v1/contests/vote-statuses', { contestIds });
+      return response;
+    } catch (error: any) {
+      console.log('API: Error fetching vote statuses:', error);
+      return {
+        success: false,
+        error: error?.response?.data?.error || { title: 'Failed to fetch vote statuses', status: 500 },
       };
     }
   },

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState } from "react";
+import React from "react";
 import {
   Image,
   ImageSourcePropType,
@@ -19,6 +19,8 @@ interface ContestantCardProps {
   userName: string;
   votes: number;
   onVote: () => void;
+  hasVoted?: boolean;
+  isVoting?: boolean;
   showWinnerBadge?: boolean;
 }
 
@@ -30,17 +32,10 @@ const ContestantCard: React.FC<ContestantCardProps> = ({
   userName,
   votes,
   onVote,
+  hasVoted = false,
+  isVoting = false,
   showWinnerBadge = false,
 }) => {
-  const [hasVoted, setHasVoted] = useState(false);
-
-  const handleVoteInternal = () => {
-    if (!hasVoted) {
-      setHasVoted(true);
-      onVote();
-    }
-  };
-
   // Helper to convert string URLs to ImageSourcePropType
   const getImageSource = (src: string | ImageSourcePropType): ImageSourcePropType => {
     if (typeof src === 'string') {
@@ -78,18 +73,20 @@ const ContestantCard: React.FC<ContestantCardProps> = ({
           {/* Footer */}
           <View style={styles.footer}>
             <Text style={styles.votesText}>
-              Total: {votes + (hasVoted ? 1 : 0)} Votes
+              Total: {votes} Votes
             </Text>
             <TouchableOpacity
-              onPress={handleVoteInternal}
+              onPress={onVote}
               activeOpacity={0.8}
               style={styles.voteButtonContainer}
-              disabled={hasVoted || showWinnerBadge}
+              disabled={hasVoted || isVoting || showWinnerBadge}
             >
               <LinearGradient
                 colors={
                   showWinnerBadge
                     ? ["#d6999c", "#d6999c"]
+                    : isVoting
+                      ? ["#9CA3AF", "#9CA3AF"]
                     : hasVoted
                       ? ["#00B85C", "#00B85C"]
                       : ["#990000", "#D40000"]
@@ -112,7 +109,7 @@ const ContestantCard: React.FC<ContestantCardProps> = ({
                     />
                   )}
                   <Text style={styles.voteButtonText}>
-                    {showWinnerBadge ? "Vote" : hasVoted ? "Voted" : "Vote"}
+                    {showWinnerBadge ? "Vote" : hasVoted ? "Voted" : isVoting ? "Voting..." : "Vote"}
                   </Text>
                 </View>
               </LinearGradient>

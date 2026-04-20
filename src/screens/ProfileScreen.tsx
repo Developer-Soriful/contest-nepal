@@ -127,8 +127,10 @@ const ProfileScreen = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAvatarPreviewModal, setShowAvatarPreviewModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [isAvatarPreviewLoading, setIsAvatarPreviewLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Get real user data from AuthContext
@@ -223,6 +225,20 @@ const ProfileScreen = () => {
     }
   };
 
+  const handleAvatarPreviewOpen = () => {
+    if (!userData.avatar || avatarError) {
+      return;
+    }
+
+    setIsAvatarPreviewLoading(true);
+    setShowAvatarPreviewModal(true);
+  };
+
+  const handleAvatarPreviewClose = () => {
+    setShowAvatarPreviewModal(false);
+    setIsAvatarPreviewLoading(false);
+  };
+
   const handleAvatarPress = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -300,12 +316,23 @@ const ProfileScreen = () => {
           <View style={styles.userCard}>
             <View style={styles.avatarContainer}>
               {userData.avatar && !avatarError ? (
-                <Image
-                  key={userData.avatar}
-                  source={{ uri: userData.avatar }}
-                  style={styles.avatar}
-                  onError={() => setAvatarError(true)}
-                />
+                <Pressable
+                  onPress={handleAvatarPreviewOpen}
+                  style={styles.avatarPressable}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open profile picture"
+                  hitSlop={8}
+                >
+                  <Image
+                    key={userData.avatar}
+                    source={{ uri: userData.avatar }}
+                    style={styles.avatar}
+                    onError={() => setAvatarError(true)}
+                  />
+                  <View style={styles.avatarPreviewBadge}>
+                    <Ionicons name="expand-outline" size={12} color="#FFF" />
+                  </View>
+                </Pressable>
               ) : (
                 <Image
                   source={import_img.user_avatar}
@@ -470,6 +497,61 @@ const ProfileScreen = () => {
         </View>
       </Modal>
 
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showAvatarPreviewModal}
+        statusBarTranslucent
+        onRequestClose={handleAvatarPreviewClose}
+      >
+        <View style={styles.imagePreviewModalRoot}>
+          <Pressable
+            style={styles.imagePreviewBackdrop}
+            onPress={handleAvatarPreviewClose}
+          />
+
+          <View style={styles.imagePreviewHeader}>
+            <Text style={styles.imagePreviewTitle}>Profile Photo</Text>
+            <TouchableOpacity
+              style={styles.imagePreviewCloseButton}
+              onPress={handleAvatarPreviewClose}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Close profile picture preview"
+            >
+              <Ionicons name="close" size={22} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+
+          <Pressable style={styles.imagePreviewContent}>
+            {userData.avatar && (
+              <>
+                <Image
+                  source={{ uri: userData.avatar }}
+                  style={styles.imagePreview}
+                  resizeMode="contain"
+                  onLoadStart={() => setIsAvatarPreviewLoading(true)}
+                  onLoadEnd={() => setIsAvatarPreviewLoading(false)}
+                  onError={() => {
+                    setIsAvatarPreviewLoading(false);
+                    setShowAvatarPreviewModal(false);
+                    setAvatarError(true);
+                    Alert.alert('Preview unavailable', 'We could not load this profile picture. Please try again.');
+                  }}
+                />
+                {isAvatarPreviewLoading && (
+                  <View style={styles.imagePreviewLoader}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                  </View>
+                )}
+              </>
+            )}
+          </Pressable>
+
+          <Text style={styles.imagePreviewHint}>Tap outside the photo to close</Text>
+        </View>
+      </Modal>
+
       {/* Delete Account Confirmation Modal */}
       <Modal
         animationType="fade"
@@ -544,11 +626,26 @@ const styles = StyleSheet.create({
   avatarContainer: {
     position: "relative",
   },
+  avatarPressable: {
+    borderRadius: 12,
+    overflow: "hidden",
+  },
   avatar: {
     width: 70,
     height: 70,
     borderRadius: 12,
     backgroundColor: '#E5E7EB', // Gray background while loading or on error
+  },
+  avatarPreviewBadge: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(17, 24, 39, 0.72)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cameraButton: {
     position: "absolute",
@@ -630,6 +727,63 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
+  },
+  imagePreviewModalRoot: {
+    flex: 1,
+    backgroundColor: "rgba(10, 10, 10, 0.96)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 32,
+  },
+  imagePreviewBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  imagePreviewHeader: {
+    position: "absolute",
+    top: 56,
+    left: 20,
+    right: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    zIndex: 2,
+  },
+  imagePreviewTitle: {
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  imagePreviewCloseButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imagePreviewContent: {
+    width: "100%",
+    maxWidth: 420,
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imagePreview: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  imagePreviewLoader: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imagePreviewHint: {
+    marginTop: 20,
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 13,
   },
   modalContent: {
     backgroundColor: "#FFF",

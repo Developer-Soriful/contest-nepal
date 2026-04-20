@@ -15,6 +15,8 @@ interface Contestant {
   avatar: string;
   userName: string;
   votes: number;
+  hasVoted: boolean;
+  isVoting: boolean;
 }
 
 const AllContestants = () => {
@@ -40,9 +42,13 @@ const AllContestants = () => {
           // Get contest IDs for fetching vote counts
           const contestIds = contests.map((c: any) => c._id || c.id);
 
-          // Fetch vote counts from Vote model
-          const voteCountsResponse = await authApi.getVoteCounts(contestIds);
+          // Fetch vote counts and the current user's vote statuses together
+          const [voteCountsResponse, voteStatusesResponse] = await Promise.all([
+            authApi.getVoteCounts(contestIds),
+            authApi.getVoteStatuses(contestIds),
+          ]);
           const voteCounts = voteCountsResponse.success ? voteCountsResponse.data?.voteCounts || {} : {};
+          const voteStatuses = voteStatusesResponse.success ? voteStatusesResponse.data?.voteStatuses || {} : {};
 
           // Transform contest data to match ContestantCard props
           const transformedContests = contests.map((contest: any) => {
@@ -63,6 +69,8 @@ const AllContestants = () => {
               userName: organizer.displayName || 'Contest Organizer',
               // Use proper vote count from Vote model (not submissionCount)
               votes: voteCounts[id] || 0,
+              hasVoted: Boolean(voteStatuses[id]),
+              isVoting: false,
             };
           });
           setContestants(transformedContests);
@@ -78,19 +86,37 @@ const AllContestants = () => {
     };
 
     fetchContests();
-  }, []);
+  }, [contestId]);
 
   const handleVote = async (contestId: string, contestTitle: string) => {
     try {
+      const selectedContest = contestants.find((contestant) => contestant.id === contestId);
+      if (!selectedContest || selectedContest.hasVoted || selectedContest.isVoting) {
+        return;
+      }
+
+      setContestants((prev) =>
+        prev.map((contestant) =>
+          contestant.id === contestId ? { ...contestant, isVoting: true } : contestant
+        )
+      );
+
       console.log(`Voting for contest: ${contestTitle} (ID: ${contestId})`);
       
       // Call the voting API endpoint - vote on the contest
       const response = await authApi.voteOnContest(contestId);
       
       if (response.success) {
-        // Update the vote count locally
+        // Persist the authoritative state from backend response
         setContestants(prev => prev.map(c => 
-          c.id === contestId ? { ...c, votes: c.votes + 1 } : c
+          c.id === contestId
+            ? {
+                ...c,
+                votes: response.data?.voteCount ?? c.votes,
+                hasVoted: response.data?.hasVoted ?? true,
+                isVoting: false,
+              }
+            : c
         ));
         Alert.alert(
           '✅ Vote Successful!', 
@@ -98,6 +124,9 @@ const AllContestants = () => {
           [{ text: 'OK', style: 'default' }]
         );
       } else {
+        setContestants(prev => prev.map(c => 
+          c.id === contestId ? { ...c, isVoting: false } : c
+        ));
         // Show detailed error message from backend
         const errorTitle = response.error?.title || 'Vote Failed';
         const errorStatus = response.error?.status || '';
@@ -109,6 +138,9 @@ const AllContestants = () => {
         );
       }
     } catch (err: any) {
+      setContestants(prev => prev.map(c => 
+        c.id === contestId ? { ...c, isVoting: false } : c
+      ));
       console.log('Error voting:', err);
       // Handle different types of errors
       let errorMessage = 'Network error. Please check your connection and try again.';
@@ -188,6 +220,8 @@ const AllContestants = () => {
               avatar={contestant.avatar}
               userName={contestant.userName}
               votes={contestant.votes}
+              hasVoted={contestant.hasVoted}
+              isVoting={contestant.isVoting}
               onVote={() => handleVote(contestant.id, contestant.title)}
             />
           ))
