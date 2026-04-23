@@ -2,18 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  Image,
-  ScrollView,
-  Share,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    Image,
+    ScrollView,
+    Share,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+    SafeAreaView,
+    useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { import_img } from "../../assets/import_img";
 import CustomGradientButton from "../components/CustomGradientButton";
@@ -189,7 +189,7 @@ export default function ContestDetailsScreen() {
     if (contest?.id) {
       router.replace(`/entry-form?contestId=${contest.id}`);
     } else {
-      console.error('[ContestDetail] No contest ID available');
+      console.log('[ContestDetail] No contest ID available');
     }
   };
 

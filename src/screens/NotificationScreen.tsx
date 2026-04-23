@@ -88,7 +88,7 @@ const NotificationItem = ({ item, onPress }: { item: { id: string; title: string
         onPress();
         // Navigate based on notification type
         if (item.data?.contestId) {
-          router.push(`/contest-detail?id=${item.data.contestId}`);
+          router.push(`/contest-detail?contestId=${item.data.contestId}`);
         }
       }}
     >

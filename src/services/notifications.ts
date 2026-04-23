@@ -1,10 +1,20 @@
+import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
-import { authApi } from "./api";
+import { apiClient } from "./api";
 
-// Check if running in Expo Go (development build has full notification support)
-const isExpoGo = !__DEV__ || (global as any).expo?.modules?.ExpoGo?.isRunningInExpoGo?.() !== false;
+const isExpoGo = Constants.appOwnership === "expo";
+
+const getExpoProjectId = (): string | undefined => {
+  const easProjectId =
+    Constants.expoConfig?.extra?.eas?.projectId ||
+    Constants.easConfig?.projectId;
+
+  return typeof easProjectId === "string" && easProjectId.length > 0
+    ? easProjectId
+    : undefined;
+};
 
 // Configure how notifications appear when app is in foreground
 // This is safe to call even in Expo Go as it only affects local notifications
@@ -76,12 +86,19 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
     // Get Expo push token
     const pushToken = await Notifications.getExpoPushTokenAsync({
-      projectId: process.env.EXPO_PUBLIC_PROJECT_ID || undefined,
+      projectId: getExpoProjectId(),
     });
     token = pushToken.data;
     console.log("✅ Push token registered:", token);
   } catch (error) {
-    console.error("❌ Failed to get push token:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("Default FirebaseApp is not initialized")) {
+      console.log(
+        "❌ Failed to get push token: Android Firebase client config is missing. Add the correct google-services.json for com.soriful420.contest_hub to android/app and rebuild the app.",
+      );
+    } else {
+      console.log("❌ Failed to get push token:", error);
+    }
     return null;
   }
 
@@ -98,25 +115,20 @@ export async function sendPushTokenToBackend(token: string): Promise<boolean> {
   }
 
   try {
-    const response = await authApi.updateMe({
-      settings: {
-        notifications: {
-          pushToken: token,
-          platform: Platform.OS,
-          enabled: true,
-        },
-      },
+    const response = await apiClient.post<{ message: string }>("/v1/me/devices", {
+      fcmToken: token,
+      platform: Platform.OS === "ios" ? "ios" : Platform.OS === "android" ? "android" : "web",
     });
 
     if (response.success) {
       console.log("✅ Push token saved to backend");
       return true;
     } else {
-      console.error("❌ Failed to save push token:", response.error);
+      console.log("❌ Failed to save push token:", response.error);
       return false;
     }
   } catch (error) {
-    console.error("❌ Error sending push token to backend:", error);
+    console.log("❌ Error sending push token to backend:", error);
     return false;
   }
 }
@@ -124,20 +136,17 @@ export async function sendPushTokenToBackend(token: string): Promise<boolean> {
 /**
  * Remove push token from backend (logout/unregister)
  */
-export async function removePushTokenFromBackend(): Promise<boolean> {
+export async function removePushTokenFromBackend(token?: string | null): Promise<boolean> {
   try {
-    const response = await authApi.updateMe({
-      settings: {
-        notifications: {
-          pushToken: null,
-          enabled: false,
-        },
-      },
-    });
+    if (!token) {
+      return false;
+    }
 
+    const encodedToken = encodeURIComponent(token);
+    const response = await apiClient.delete<{ message: string }>(`/v1/me/devices/${encodedToken}`);
     return response.success;
   } catch (error) {
-    console.error("Error removing push token:", error);
+    console.log("Error removing push token:", error);
     return false;
   }
 }
@@ -168,7 +177,7 @@ export async function scheduleLocalNotification(
     console.log("✅ Local notification scheduled:", id);
     return id;
   } catch (error) {
-    console.error("❌ Failed to schedule notification:", error);
+    console.log("❌ Failed to schedule notification:", error);
     return null;
   }
 }

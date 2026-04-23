@@ -1,6 +1,6 @@
 import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, RefreshControl, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Header from "../components/Header";
@@ -543,6 +543,12 @@ const Dashboard = () => {
 
               <View style={{ flexDirection: "row", marginTop: 20 }}>
                 <TouchableOpacity
+                  onPress={() => {
+                    if (item.id && item.id !== "placeholder") {
+                      router.push(`/contest-detail?contestId=${item.id}` as any);
+                    }
+                  }}
+                  disabled={!item.id || item.id === "placeholder"}
                   style={{
                     borderWidth: 1,
                     borderColor: "#A30000",
@@ -550,6 +556,7 @@ const Dashboard = () => {
                     paddingVertical: 10,
                     paddingHorizontal: 20,
                     marginRight: 15,
+                    opacity: !item.id || item.id === "placeholder" ? 0.5 : 1,
                   }}
                 >
                   <Text style={{ color: "#A30000", fontWeight: "600" }}>
@@ -558,11 +565,18 @@ const Dashboard = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity
+                  onPress={() => {
+                    if (item.id && item.id !== "placeholder") {
+                      router.push(`/entry-form?contestId=${item.id}` as any);
+                    }
+                  }}
+                  disabled={!item.id || item.id === "placeholder"}
                   style={{
                     backgroundColor: "#E8EAF6",
                     borderRadius: 8,
                     paddingVertical: 10,
                     paddingHorizontal: 20,
+                    opacity: !item.id || item.id === "placeholder" ? 0.5 : 1,
                   }}
                 >
                   <Text style={{ color: "#918EF4", fontWeight: "600" }}>

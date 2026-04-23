@@ -1,15 +1,15 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomGradientButton from "../components/CustomGradientButton";
@@ -92,7 +92,7 @@ const Contest_Detail_Screen = () => {
         setError(response.error?.title || "Failed to load contest");
       }
     } catch (err) {
-      console.error("Error fetching contest:", err);
+      console.log("Error fetching contest:", err);
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);

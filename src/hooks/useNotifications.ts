@@ -3,18 +3,20 @@ import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { io, Socket } from "socket.io-client";
 import { useAuth } from "../contexts/AuthContext";
+import { authApi } from "../services/api";
 import {
-  getMyNotifications,
-  markAllNotificationsAsRead,
-  markNotificationAsRead,
-} from "../services/pushNotifications";
-import {
-  clearBadge,
-  registerForPushNotificationsAsync,
-  removePushTokenFromBackend,
-  sendPushTokenToBackend,
+    clearBadge,
+    registerForPushNotificationsAsync,
+    removePushTokenFromBackend,
+    sendPushTokenToBackend,
 } from "../services/notifications";
+import {
+    getMyNotifications,
+    markAllNotificationsAsRead,
+    markNotificationAsRead,
+} from "../services/pushNotifications";
 
 // Check if running in Expo Go
 const isExpoGo = Constants.appOwnership === "expo";
@@ -43,6 +45,37 @@ interface NotificationData {
   read: boolean;
 }
 
+type BackendNotificationPayload = {
+  id?: string;
+  _id?: string;
+  title?: string;
+  body?: string;
+  type?: string;
+  data?: Record<string, any>;
+  createdAt?: string;
+  timestamp?: string;
+  read?: boolean;
+  isRead?: boolean;
+};
+
+const normalizeNotificationType = (value?: string) => {
+  switch (value) {
+    case "CONTEST_UPDATE":
+    case "contest":
+      return "contest";
+    case "WINNER_ALERT":
+    case "REWARD":
+    case "prize":
+    case "reward":
+    case "giveaway":
+      return "prize";
+    case "entry":
+      return "entry";
+    default:
+      return "system";
+  }
+};
+
 interface UseNotificationsReturn {
   pushToken: string | null;
   notificationPermission: boolean;
@@ -64,10 +97,50 @@ export function useNotifications(): UseNotificationsReturn {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   // Refs to prevent duplicate registrations
   const isRegisteringRef = useRef(false);
   const hasRegisteredRef = useRef(false);
+
+  const appendNotification = useCallback((payload: BackendNotificationPayload) => {
+    const normalized: NotificationData = {
+      id: String(payload.id || payload._id || ""),
+      title: payload.title || "New Notification",
+      body: payload.body || "",
+      data: {
+        ...(payload.data || {}),
+        type: normalizeNotificationType(payload.data?.type || payload.type),
+      },
+      timestamp: payload.createdAt || payload.timestamp || new Date().toISOString(),
+      read: payload.read ?? payload.isRead ?? false,
+    };
+
+    if (!normalized.id) {
+      return;
+    }
+
+    let inserted = false;
+
+    setNotifications((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === normalized.id);
+      if (existingIndex >= 0) {
+        const next = [...prev];
+        next[existingIndex] = {
+          ...next[existingIndex],
+          ...normalized,
+        };
+        return next;
+      }
+
+      inserted = !normalized.read;
+      return [normalized, ...prev];
+    });
+
+    if (inserted) {
+      setUnreadCount((prev) => prev + 1);
+    }
+  }, []);
 
   // Register push notifications
   const registerPushNotifications = useCallback(async () => {
@@ -103,7 +176,7 @@ export function useNotifications(): UseNotificationsReturn {
         setNotificationPermission(false);
       }
     } catch (error) {
-      console.error("Error registering push notifications:", error);
+      console.log("Error registering push notifications:", error);
       setNotificationPermission(false);
     } finally {
       isRegisteringRef.current = false;
@@ -128,7 +201,10 @@ export function useNotifications(): UseNotificationsReturn {
           id: item.id,
           title: item.title,
           body: item.body,
-          data: item.data || {},
+          data: {
+            ...(item.data || {}),
+            type: normalizeNotificationType(item.data?.type || item.type),
+          },
           timestamp: item.createdAt,
           read: item.read,
         }));
@@ -140,7 +216,7 @@ export function useNotifications(): UseNotificationsReturn {
         setUnreadCount(0);
       }
     } catch (error) {
-      console.error("Failed to refresh notifications:", error);
+      console.log("Failed to refresh notifications:", error);
       setNotifications([]);
       setUnreadCount(0);
     } finally {
@@ -229,18 +305,14 @@ export function useNotifications(): UseNotificationsReturn {
       Notifications.addNotificationReceivedListener((notification) => {
         const { title, body, data } = notification.request.content;
 
-        // Add to local notifications list
-        const newNotification: NotificationData = {
+        appendNotification({
           id: notification.request.identifier,
           title: title || "New Notification",
           body: body || "",
           data: data || {},
           timestamp: new Date().toISOString(),
           read: false,
-        };
-
-        setNotifications((prev) => [newNotification, ...prev]);
-        setUnreadCount((prev) => prev + 1);
+        });
       });
 
     return () => {
@@ -263,7 +335,7 @@ export function useNotifications(): UseNotificationsReturn {
 
         // Navigate based on notification type
         if (data?.type === "contest" && data?.contestId) {
-          router.push(`/contest-detail?id=${data.contestId}`);
+          router.push(`/contest-detail?contestId=${data.contestId}`);
         } else if (data?.type === "prize") {
           router.push("/dashboard");
         } else if (data?.type === "entry") {
@@ -281,7 +353,7 @@ export function useNotifications(): UseNotificationsReturn {
         responseListener.current.remove();
       }
     };
-  }, [markAsRead]);
+  }, [markAsRead, appendNotification]);
 
   // Clear badge on app open
   useEffect(() => {
@@ -299,12 +371,64 @@ export function useNotifications(): UseNotificationsReturn {
       return;
     }
     if (!isAuthenticated && pushToken && hasRegisteredRef.current) {
-      removePushTokenFromBackend().then(() => {
+      removePushTokenFromBackend(pushToken).then(() => {
         setPushToken(null);
         hasRegisteredRef.current = false;
       });
     }
   }, [isAuthenticated, pushToken]);
+
+  useEffect(() => {
+    const apiBaseUrl = (process.env.EXPO_PUBLIC_API_URL || "").replace(/\/+$/, "");
+
+    if (!isAuthenticated || !user || !apiBaseUrl) {
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+      return;
+    }
+
+    let isCancelled = false;
+
+    const connectSocket = async () => {
+      const { accessToken } = await authApi.getTokens();
+
+      if (!accessToken || isCancelled) {
+        return;
+      }
+
+      socketRef.current?.disconnect();
+
+      const socket = io(apiBaseUrl, {
+        auth: { token: accessToken },
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        timeout: 10000,
+      });
+
+      socket.on("connect", () => {
+        console.log("[Notifications] Socket connected");
+        void refreshNotifications();
+      });
+
+      socket.on("notification:new", (payload: BackendNotificationPayload) => {
+        appendNotification(payload);
+      });
+
+      socket.on("connect_error", (error) => {
+        console.log("[Notifications] Socket connection error:", error.message);
+      });
+
+      socketRef.current = socket;
+    };
+
+    void connectSocket();
+
+    return () => {
+      isCancelled = true;
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+    };
+  }, [appendNotification, isAuthenticated, refreshNotifications, user]);
 
   return {
     pushToken,

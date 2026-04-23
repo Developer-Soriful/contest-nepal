@@ -68,6 +68,7 @@ export async function getMyNotifications(
     id: string;
     title: string;
     body: string;
+    type?: string;
     data: Record<string, any>;
     read: boolean;
     createdAt: string;
@@ -81,6 +82,7 @@ export async function getMyNotifications(
         id?: string;
         title?: string;
         body?: string;
+        type?: string;
         data?: Record<string, any>;
         isRead?: boolean;
         read?: boolean;
@@ -100,6 +102,7 @@ export async function getMyNotifications(
       id: item.id || item._id || "",
       title: item.title || "Notification",
       body: item.body || "",
+      type: item.type || "system",
       data: item.data || {},
       read: item.read ?? item.isRead ?? false,
       createdAt: item.createdAt || new Date().toISOString(),
@@ -111,7 +114,7 @@ export async function getMyNotifications(
       nextCursor: response.data?.nextCursor || undefined,
     };
   } catch (error) {
-    console.error("Failed to fetch notifications:", error);
+    console.log("Failed to fetch notifications:", error);
     return {
       success: false,
       items: [],
@@ -130,7 +133,7 @@ export async function markNotificationAsRead(
     const response = await apiClient.patch(`/v1/me/notifications/${notificationId}/read`, {});
     return { success: response.success };
   } catch (error) {
-    console.error("Failed to mark notification as read:", error);
+    console.log("Failed to mark notification as read:", error);
     return { success: false };
   }
 }
@@ -144,7 +147,7 @@ export async function markAllNotificationsAsRead(): Promise<{ success: boolean }
     const response = await apiClient.post("/v1/me/notifications/read-all", {});
     return { success: response.success };
   } catch (error) {
-    console.error("Failed to mark all notifications as read:", error);
+    console.log("Failed to mark all notifications as read:", error);
     return { success: false };
   }
 }

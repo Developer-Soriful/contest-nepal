@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Platform } from 'react-native';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || '';
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
@@ -74,7 +74,7 @@ export function useGoogleAuthNative() {
     try {
       await GoogleSignin.signOut();
     } catch (error) {
-      console.error('Google sign out error:', error);
+      console.log('Google sign out error:', error);
     }
   };
 
