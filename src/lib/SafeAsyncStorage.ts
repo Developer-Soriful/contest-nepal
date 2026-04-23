@@ -13,6 +13,7 @@ type ExpoSecureStoreNativeModule = {
 };
 
 let secureStoreModule: ExpoSecureStoreNativeModule | null | undefined;
+const SECURE_STORE_OPTIONS: Record<string, unknown> = {};
 
 const getSecureStoreModule = (): ExpoSecureStoreNativeModule | null => {
   if (secureStoreModule !== undefined) {
@@ -85,7 +86,7 @@ class SafeAsyncStorage {
           return SafeAsyncStorage.memoryStorage[key] || null;
         }
 
-        const secureValue = await secureStore.getValueWithKeyAsync(key);
+        const secureValue = await secureStore.getValueWithKeyAsync(key, SECURE_STORE_OPTIONS);
         if (secureValue !== null) {
           SafeAsyncStorage.memoryStorage[key] = secureValue;
           return secureValue;
@@ -94,7 +95,7 @@ class SafeAsyncStorage {
         if (typeof AsyncStorage !== 'undefined' && AsyncStorage && AsyncStorage.getItem) {
           const legacyValue = await AsyncStorage.getItem(key);
           if (legacyValue !== null) {
-            await secureStore.setValueWithKeyAsync(legacyValue, key);
+            await secureStore.setValueWithKeyAsync(legacyValue, key, SECURE_STORE_OPTIONS);
             await AsyncStorage.removeItem(key);
             SafeAsyncStorage.memoryStorage[key] = legacyValue;
             return legacyValue;
@@ -137,7 +138,7 @@ class SafeAsyncStorage {
           return;
         }
 
-        await secureStore.setValueWithKeyAsync(value, key);
+        await secureStore.setValueWithKeyAsync(value, key, SECURE_STORE_OPTIONS);
         SafeAsyncStorage.memoryStorage[key] = value;
 
         if (typeof AsyncStorage !== 'undefined' && AsyncStorage && AsyncStorage.removeItem) {
@@ -180,7 +181,7 @@ class SafeAsyncStorage {
       if (SafeAsyncStorage.shouldUseSecureStore(key)) {
         const secureStore = getSecureStoreModule();
         if (secureStore?.deleteValueWithKeyAsync) {
-          await secureStore.deleteValueWithKeyAsync(key);
+          await secureStore.deleteValueWithKeyAsync(key, SECURE_STORE_OPTIONS);
         }
       }
 
@@ -222,7 +223,7 @@ class SafeAsyncStorage {
             ? (async () => {
                 const secureStore = getSecureStoreModule();
                 if (secureStore?.deleteValueWithKeyAsync) {
-                  await secureStore.deleteValueWithKeyAsync(key);
+                  await secureStore.deleteValueWithKeyAsync(key, SECURE_STORE_OPTIONS);
                 }
               })()
             : Promise.resolve()

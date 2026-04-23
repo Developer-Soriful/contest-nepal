@@ -217,7 +217,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await authApi.socialLogin(provider, token);
 
       if (response.success && response.data) {
-        if (response.data.tokens?.accessToken) {
+        if (response.data.user && response.data.tokens?.accessToken) {
           setUser(response.data.user);
         } else {
           await clearAuthData();

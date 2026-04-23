@@ -48,7 +48,7 @@ export default function Signup() {
     } catch (error: any) {
       if (error.message !== 'User cancelled') {
         console.log('Google signup error:', error);
-        Alert.alert('Google Signup Failed', error.message);
+        Alert.alert('Google Signup Failed', error?.message || 'Google signup failed. Please try again.');
       }
     }
   };

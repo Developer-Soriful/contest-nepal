@@ -1,5 +1,14 @@
-import { useGoogleAuthSimple } from "./useGoogleAuthSimple";
+import { Platform } from 'react-native';
+import { useGoogleAuthNative } from './useGoogleAuthNative';
+import { useGoogleAuthSimple } from './useGoogleAuthSimple';
 
 export function useGoogleAuth() {
-  return useGoogleAuthSimple();
+  const nativeAuth = useGoogleAuthNative();
+  const simpleAuth = useGoogleAuthSimple();
+
+  if (Platform.OS === 'android') {
+    return nativeAuth;
+  }
+
+  return simpleAuth;
 }

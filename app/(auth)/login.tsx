@@ -47,7 +47,7 @@ export default function Login() {
     } catch (error: any) {
       if (error.message !== 'User cancelled') {
         console.log('Google login error:', error);
-        Alert.alert('Google Login Failed', error.message);
+        Alert.alert('Google Login Failed', error?.message || 'Google login failed. Please try again.');
       }
     }
   };

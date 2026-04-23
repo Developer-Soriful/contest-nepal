@@ -39,9 +39,15 @@ export function useGoogleAuthNative() {
       await GoogleSignin.signOut().catch(() => undefined);
 
       // Open the native Google account chooser.
-      await GoogleSignin.signIn();
+      const signInResult = await GoogleSignin.signIn();
+      const idTokenFromSignIn =
+        signInResult.type === 'success' ? signInResult.data.idToken : null;
 
-      // The backend already supports verifying Google ID tokens directly.
+      if (idTokenFromSignIn) {
+        return idTokenFromSignIn;
+      }
+
+      // Fallback for environments where token retrieval is exposed separately.
       const tokens = await GoogleSignin.getTokens();
 
       if (!tokens.idToken) {

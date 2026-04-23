@@ -90,6 +90,62 @@ export interface AuthResponse {
   emailVerificationRequired?: boolean;
 }
 
+const isAuthUser = (value: unknown): value is AuthResponse['user'] => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.role === 'string' &&
+    typeof candidate.status === 'string' &&
+    !!candidate.profile &&
+    typeof candidate.profile === 'object'
+  );
+};
+
+const isAuthTokenBundle = (value: unknown): value is NonNullable<AuthResponse['tokens']> => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.accessToken === 'string' &&
+    candidate.accessToken.length > 0 &&
+    typeof candidate.refreshToken === 'string' &&
+    candidate.refreshToken.length > 0
+  );
+};
+
+type SocialAuthPayload = Omit<AuthResponse, 'tokens'> & {
+  tokens: NonNullable<AuthResponse['tokens']>;
+};
+
+const normalizeAuthPayload = (value: unknown): SocialAuthPayload | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const nestedData = candidate.data;
+  const source =
+    nestedData && typeof nestedData === 'object' && !Array.isArray(nestedData)
+      ? (nestedData as Record<string, unknown>)
+      : candidate;
+
+  if (!isAuthUser(source.user) || !isAuthTokenBundle(source.tokens)) {
+    return null;
+  }
+
+  return {
+    user: source.user,
+    tokens: source.tokens,
+    emailVerificationRequired: source.emailVerificationRequired === true,
+  };
+};
+
 // Request Schemas (matching backend)
 const registerSchema = z.object({
   email: z.string().email().toLowerCase().trim(),
@@ -1471,8 +1527,20 @@ export const authApi = {
         token,
       });
 
-      if (response.success && response.data) {
-        if (!isParticipantAppUser(response.data.user)) {
+      if (response.success) {
+        const normalizedAuth = normalizeAuthPayload(response.data);
+
+        if (!normalizedAuth) {
+          await apiClient.clearTokens();
+          return {
+            success: false,
+            error: { title: 'Social login returned an invalid session payload', status: 500 },
+          };
+        }
+
+        response.data = normalizedAuth;
+
+        if (!isParticipantAppUser(normalizedAuth.user)) {
           await apiClient.clearTokens();
           return {
             success: false,
@@ -1480,26 +1548,15 @@ export const authApi = {
           };
         }
 
-        if (!response.data.tokens?.accessToken || !response.data.tokens?.refreshToken) {
-          await apiClient.clearTokens();
-          return {
-            success: false,
-            error: { title: 'Social login succeeded but no auth tokens were returned', status: 500 },
-          };
-        }
-
-        // Store tokens
-        if (response.data.tokens) {
-          await apiClient.setTokens(response.data.tokens.accessToken, response.data.tokens.refreshToken);
-        }
+        await apiClient.setTokens(normalizedAuth.tokens.accessToken, normalizedAuth.tokens.refreshToken);
 
         // Normalize avatar URL
-        if (response.data.user?.profile) {
-          response.data.user.profile.avatarUrl = getImageUrl(response.data.user.profile.avatarUrl);
+        if (normalizedAuth.user.profile) {
+          normalizedAuth.user.profile.avatarUrl = getImageUrl(normalizedAuth.user.profile.avatarUrl);
         }
 
         // Save user data
-        await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data.user));
+        await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(normalizedAuth.user));
 
         // Clear session expired flag
         await SafeAsyncStorage.removeItem('SESSION_EXPIRED');
