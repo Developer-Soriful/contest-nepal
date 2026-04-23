@@ -1,14 +1,15 @@
 import Header from "@/src/components/Header";
 import {
-  AntDesign,
-  Ionicons,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
+  buildNotificationDetailHref,
+  getNotificationContestId,
+  getNotificationEntryId,
+  resolveNotificationTarget,
+} from "@/src/lib/notificationRouting";
+import { AntDesign, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useMemo } from "react";
 import {
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,138 +18,76 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// --- Icon map by category type ---
-const categoryIconMap: Record<string, { name: any; lib: string }> = {
+const categoryIconMap: Record<string, { name: any; lib: "material" | "ionicons" }> = {
   prize: { name: "trophy-outline", lib: "material" },
   contest: { name: "flag-outline", lib: "ionicons" },
   entry: { name: "checkmark-circle-outline", lib: "ionicons" },
   reminder: { name: "alarm-outline", lib: "ionicons" },
-  reward: { name: "star-outline", lib: "ionicons" },
+  announcement: { name: "megaphone-outline", lib: "ionicons" },
+  system: { name: "notifications-outline", lib: "ionicons" },
   default: { name: "notifications-outline", lib: "ionicons" },
 };
 
-// --- Context-aware quick actions by category ---
-const actionsByCategory: Record<
-  string,
-  { label: string; icon: any; desc: string }[]
-> = {
-  prize: [
-    {
-      label: "Claim Prize",
-      icon: "gift-outline",
-      desc: "Go to your prize dashboard",
-    },
-    {
-      label: "View Contest",
-      icon: "trophy-outline",
-      desc: "See the winning contest details",
-    },
-    {
-      label: "Share Win",
-      icon: "share-social-outline",
-      desc: "Let your friends know!",
-    },
-  ],
-  contest: [
-    {
-      label: "Join Contest",
-      icon: "flag-outline",
-      desc: "Enter this contest now",
-    },
-    {
-      label: "View Rules",
-      icon: "document-text-outline",
-      desc: "Read the contest guidelines",
-    },
-    {
-      label: "Save for Later",
-      icon: "bookmark-outline",
-      desc: "Add to your saved contests",
-    },
-  ],
-  entry: [
-    {
-      label: "View Submission",
-      icon: "image-outline",
-      desc: "See your approved entry",
-    },
-    {
-      label: "View Rankings",
-      icon: "stats-chart-outline",
-      desc: "See where you stand",
-    },
-    {
-      label: "Share Entry",
-      icon: "share-social-outline",
-      desc: "Share your submission",
-    },
-  ],
-  reminder: [
-    {
-      label: "Enter Now",
-      icon: "rocket-outline",
-      desc: "Submit your entry before it ends",
-    },
-    {
-      label: "Set Alert",
-      icon: "alarm-outline",
-      desc: "Remind me 1 hour before",
-    },
-    {
-      label: "View Contest",
-      icon: "eye-outline",
-      desc: "Open the contest details",
-    },
-  ],
-  reward: [
-    {
-      label: "View Points",
-      icon: "star-outline",
-      desc: "See your full rewards history",
-    },
-    {
-      label: "Redeem Points",
-      icon: "card-outline",
-      desc: "Use your points for prizes",
-    },
-    {
-      label: "Leaderboard",
-      icon: "podium-outline",
-      desc: "See the top performers",
-    },
-  ],
-  default: [
-    {
-      label: "View Details",
-      icon: "eye-outline",
-      desc: "See more information",
-    },
-    {
-      label: "Mark as Read",
-      icon: "checkmark-done-outline",
-      desc: "Dismiss this notification",
-    },
-  ],
-};
+function formatTime(timestamp?: string) {
+  if (!timestamp) {
+    return "Recently";
+  }
+
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return timestamp;
+  }
+
+  return parsed.toLocaleString();
+}
 
 const NotificationDetailScreen = () => {
-  const [showActionSheet, setShowActionSheet] = useState(false);
-
   const params = useLocalSearchParams<{
-    id: string;
-    title: string;
-    message: string;
-    time: string;
-    category: string;
+    id?: string;
+    title?: string;
+    message?: string;
+    time?: string;
+    category?: string;
+    source?: string;
+    actionLabel?: string;
+    data?: string;
   }>();
 
-  const { title, message, time, category } = params;
-  const resolvedCategory = category?.toLowerCase() ?? "default";
+  const payloadData = useMemo(() => {
+    if (!params.data) {
+      return {};
+    }
 
-  const iconEntry =
-    categoryIconMap[resolvedCategory] ?? categoryIconMap.default;
-  const actions =
-    actionsByCategory[resolvedCategory] ?? actionsByCategory.default;
+    try {
+      const parsed = JSON.parse(params.data);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }, [params.data]);
+
+  const notification = useMemo(
+    () => ({
+      id: params.id,
+      title: params.title || "Notification",
+      body: params.message || "",
+      type: params.category,
+      timestamp: params.time,
+      data: payloadData,
+    }),
+    [params.category, params.id, params.message, params.time, params.title, payloadData]
+  );
+
+  const target = useMemo(() => resolveNotificationTarget(notification), [notification]);
+  const isSelfDetailTarget = useMemo(() => {
+    const detailHref = buildNotificationDetailHref(notification, params.actionLabel || "View Details");
+    return JSON.stringify(detailHref) === JSON.stringify(target.href);
+  }, [notification, params.actionLabel, target.href]);
+
+  const category = (params.category || "system").toLowerCase();
+  const iconEntry = categoryIconMap[category] ?? categoryIconMap.default;
+  const contestId = getNotificationContestId(notification);
+  const entryId = getNotificationEntryId(notification);
 
   const renderIcon = () => {
     if (iconEntry.lib === "material") {
@@ -162,7 +101,7 @@ const NotificationDetailScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Header
-        title="Notification Detail"
+        title="Notification"
         backgroundColor="transparent"
         showLeftIcon={true}
       />
@@ -170,7 +109,6 @@ const NotificationDetailScreen = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Hero Icon */}
         <View style={styles.heroSection}>
           <LinearGradient
             colors={["#A30000", "#D21F2A"]}
@@ -178,117 +116,81 @@ const NotificationDetailScreen = () => {
           >
             {renderIcon()}
           </LinearGradient>
-          <View style={styles.categoryBadge}>
-            <AntDesign name="bell" size={12} color="#A30000" />
-            <Text style={styles.categoryText}>
-              {category ?? "Notification"}
+          <View style={styles.metaRow}>
+            <View style={styles.categoryBadge}>
+              <AntDesign name="bell" size={12} color="#A30000" />
+              <Text style={styles.categoryText}>{category}</Text>
+            </View>
+            <View style={styles.sourceBadge}>
+              <Text style={styles.sourceText}>{params.source || "system"}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.detailSection}>
+          <Text style={styles.titleText}>{notification.title}</Text>
+
+          <View style={styles.timeBadge}>
+            <Ionicons name="time-outline" size={14} color="#667085" />
+            <Text style={styles.timeText}>{formatTime(notification.timestamp)}</Text>
+          </View>
+
+          <Text style={styles.messageLabel}>Message</Text>
+          <Text style={styles.messageText}>
+            {notification.body || "No additional details were included."}
+          </Text>
+        </View>
+
+        <View style={styles.metaSection}>
+          {contestId ? (
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Contest</Text>
+              <Text style={styles.metaValue}>{contestId}</Text>
+            </View>
+          ) : null}
+          {entryId ? (
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Entry</Text>
+              <Text style={styles.metaValue}>{entryId}</Text>
+            </View>
+          ) : null}
+          <View style={styles.metaItem}>
+            <Text style={styles.metaLabel}>Delivery</Text>
+            <Text style={styles.metaValue}>
+              {payloadData.path ? "Backend-directed" : "App-resolved"}
             </Text>
           </View>
         </View>
 
-        {/* Detail Card */}
-        <View style={styles.detailCard}>
-          <Text style={styles.titleText}>{title}</Text>
-
-          <View style={styles.timeBadge}>
-            <Ionicons name="time-outline" size={14} color="#667085" />
-            <Text style={styles.timeText}>{time}</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <Text style={styles.messageLabel}>Message</Text>
-          <Text style={styles.messageText}>{message}</Text>
-        </View>
-
-        {/* CTA Section */}
-        <View style={styles.ctaSection}>
+        {!isSelfDetailTarget ? (
           <TouchableOpacity
-            style={styles.ctaButton}
+            style={styles.primaryButton}
             activeOpacity={0.85}
-            onPress={() => setShowActionSheet(true)}
+            onPress={() => router.push(target.href)}
           >
             <LinearGradient
               colors={["#A30000", "#D21F2A"]}
-              style={styles.ctaGradient}
+              style={styles.primaryButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Ionicons name="rocket-outline" size={18} color="#FFF" />
-              <Text style={styles.ctaButtonText}>Take Action</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFF" />
+              <Text style={styles.primaryButtonText}>
+                {params.actionLabel || target.actionLabel}
+              </Text>
             </LinearGradient>
           </TouchableOpacity>
-          <Text style={styles.dismissHint}>
-            Tap above to see available actions for this notification.
-          </Text>
-        </View>
-      </ScrollView>
+        ) : null}
 
-      {/* Bottom Action Sheet Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showActionSheet}
-        onRequestClose={() => setShowActionSheet(false)}
-      >
         <TouchableOpacity
-          style={styles.modalBackdrop}
-          activeOpacity={1}
-          onPress={() => setShowActionSheet(false)}
-        />
-        <View style={styles.actionSheet}>
-          {/* Handle bar */}
-          <View style={styles.sheetHandle} />
-
-          {/* Header */}
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Quick Actions</Text>
-            <TouchableOpacity
-              onPress={() => setShowActionSheet(false)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close-circle" size={26} color="#C7D0DD" />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.sheetSubtitle}>
-            What would you like to do with this notification?
-          </Text>
-
-          {/* Action Items */}
-          <View style={styles.actionList}>
-            {actions.map((action, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.actionItem}
-                activeOpacity={0.7}
-                onPress={() => setShowActionSheet(false)}
-              >
-                <LinearGradient
-                  colors={["#A3000018", "#D21F2A10"]}
-                  style={styles.actionIconBg}
-                >
-                  <Ionicons name={action.icon} size={22} color="#A30000" />
-                </LinearGradient>
-                <View style={styles.actionTextGroup}>
-                  <Text style={styles.actionLabel}>{action.label}</Text>
-                  <Text style={styles.actionDesc}>{action.desc}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#C7D0DD" />
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Cancel */}
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => setShowActionSheet(false)}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
+          style={styles.secondaryButton}
+          activeOpacity={0.8}
+          onPress={() => router.push("/notifications")}
+        >
+          <Ionicons name="list-outline" size={18} color="#A30000" />
+          <Text style={styles.secondaryButtonText}>Back to Notifications</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -301,24 +203,25 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 10,
-    paddingBottom: 50,
+    paddingBottom: 40,
   },
   heroSection: {
     alignItems: "center",
-    paddingVertical: 30,
-    gap: 16,
+    paddingVertical: 28,
   },
   iconContainer: {
     width: 90,
     height: 90,
-    borderRadius: 28,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 8,
-    shadowColor: "#A30000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
+    marginBottom: 16,
+  },
+  metaRow: {
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+    justifyContent: "center",
   },
   categoryBadge: {
     flexDirection: "row",
@@ -337,174 +240,114 @@ const styles = StyleSheet.create({
     color: "#A30000",
     textTransform: "capitalize",
   },
-  detailCard: {
-    backgroundColor: "#FFF",
+  sourceBadge: {
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    padding: 24,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    marginBottom: 20,
-    borderLeftWidth: 4,
-    borderLeftColor: "#A30000",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#E4E7EC",
+  },
+  sourceText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475467",
+    textTransform: "capitalize",
+  },
+  detailSection: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 22,
+    marginBottom: 16,
   },
   titleText: {
-    fontSize: 20,
+    fontSize: 21,
     fontWeight: "800",
     color: "#1A2E4C",
+    lineHeight: 30,
     marginBottom: 12,
-    lineHeight: 28,
   },
   timeBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   timeText: {
     fontSize: 13,
-    color: "#98A2B3",
+    color: "#667085",
     fontWeight: "500",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: "#F2F4F7",
-    marginBottom: 16,
   },
   messageLabel: {
     fontSize: 12,
     fontWeight: "700",
     color: "#667085",
     textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 10,
+    letterSpacing: 0,
+    marginBottom: 8,
   },
   messageText: {
     fontSize: 15,
     color: "#4F586D",
     lineHeight: 24,
   },
-  ctaSection: {
-    alignItems: "center",
-    gap: 14,
+  metaSection: {
+    gap: 10,
+    marginBottom: 18,
   },
-  ctaButton: {
-    width: "100%",
+  metaItem: {
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  metaLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#667085",
+  },
+  metaValue: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 13,
+    color: "#1D2939",
+    textAlign: "right",
+  },
+  primaryButton: {
     borderRadius: 14,
     overflow: "hidden",
-    elevation: 4,
-    shadowColor: "#A30000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    marginBottom: 12,
   },
-  ctaGradient: {
+  primaryButtonGradient: {
+    minHeight: 52,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 16,
   },
-  ctaButtonText: {
-    color: "#FFF",
-    fontWeight: "700",
+  primaryButtonText: {
     fontSize: 16,
+    fontWeight: "700",
+    color: "#FFF",
   },
-  dismissHint: {
-    fontSize: 12,
-    color: "#98A2B3",
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  // --- Bottom Sheet Styles ---
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  actionSheet: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingBottom: 34,
-    paddingTop: 10,
-    elevation: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-  },
-  sheetHandle: {
-    width: 44,
-    height: 4,
-    backgroundColor: "#E4E7EC",
-    borderRadius: 2,
-    alignSelf: "center",
-    marginBottom: 18,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  sheetTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#1A2E4C",
-  },
-  sheetSubtitle: {
-    fontSize: 14,
-    color: "#98A2B3",
-    marginBottom: 20,
-    lineHeight: 20,
-  },
-  actionList: {
-    gap: 12,
-    marginBottom: 20,
-  },
-  actionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FAFAFA",
-    borderRadius: 16,
-    padding: 14,
-    gap: 14,
+  secondaryButton: {
+    minHeight: 52,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#F2F4F7",
-  },
-  actionIconBg: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    borderColor: "#F04438",
+    backgroundColor: "#FFF",
+    flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
+    gap: 8,
   },
-  actionTextGroup: {
-    flex: 1,
-  },
-  actionLabel: {
+  secondaryButtonText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#1D2939",
-    marginBottom: 2,
-  },
-  actionDesc: {
-    fontSize: 12,
-    color: "#98A2B3",
-  },
-  cancelButton: {
-    alignItems: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: "#F2F4F7",
-  },
-  cancelText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#667085",
+    color: "#A30000",
   },
 });
 

@@ -1,5 +1,6 @@
 import Header from "@/src/components/Header";
 import { useNotificationContext } from "@/src/contexts/NotificationContext";
+import { resolveNotificationTarget } from "@/src/lib/notificationRouting";
 import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback } from "react";
@@ -84,12 +85,10 @@ const NotificationItem = ({ item, onPress }: { item: { id: string; title: string
     <TouchableOpacity
       style={[styles.notificationCard, item.read && styles.readCard]}
       activeOpacity={0.7}
-      onPress={() => {
+      onPress={async () => {
         onPress();
-        // Navigate based on notification type
-        if (item.data?.contestId) {
-          router.push(`/contest-detail?contestId=${item.data.contestId}`);
-        }
+        const target = resolveNotificationTarget(item);
+        router.push(target.href);
       }}
     >
       <View style={styles.cardHeader}>

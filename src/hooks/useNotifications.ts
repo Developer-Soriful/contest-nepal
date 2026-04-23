@@ -5,6 +5,11 @@ import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "../contexts/AuthContext";
+import {
+  getNotificationId,
+  normalizeNotificationType,
+  resolveNotificationTarget,
+} from "../lib/notificationRouting";
 import { authApi } from "../services/api";
 import {
     clearBadge,
@@ -58,24 +63,6 @@ type BackendNotificationPayload = {
   isRead?: boolean;
 };
 
-const normalizeNotificationType = (value?: string) => {
-  switch (value) {
-    case "CONTEST_UPDATE":
-    case "contest":
-      return "contest";
-    case "WINNER_ALERT":
-    case "REWARD":
-    case "prize":
-    case "reward":
-    case "giveaway":
-      return "prize";
-    case "entry":
-      return "entry";
-    default:
-      return "system";
-  }
-};
-
 interface UseNotificationsReturn {
   pushToken: string | null;
   notificationPermission: boolean;
@@ -98,14 +85,21 @@ export function useNotifications(): UseNotificationsReturn {
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const handledResponseIdsRef = useRef<Set<string>>(new Set());
 
   // Refs to prevent duplicate registrations
   const isRegisteringRef = useRef(false);
   const hasRegisteredRef = useRef(false);
 
   const appendNotification = useCallback((payload: BackendNotificationPayload) => {
+    const notificationId =
+      getNotificationId({
+        id: payload.id || payload._id,
+        data: payload.data,
+      }) || String(payload.id || payload._id || "");
+
     const normalized: NotificationData = {
-      id: String(payload.id || payload._id || ""),
+      id: notificationId,
       title: payload.title || "New Notification",
       body: payload.body || "",
       data: {
@@ -304,9 +298,14 @@ export function useNotifications(): UseNotificationsReturn {
     notificationListener.current =
       Notifications.addNotificationReceivedListener((notification) => {
         const { title, body, data } = notification.request.content;
+        const requestId =
+          getNotificationId({
+            id: notification.request.identifier,
+            data,
+          }) || notification.request.identifier;
 
         appendNotification({
-          id: notification.request.identifier,
+          id: requestId,
           title: title || "New Notification",
           body: body || "",
           data: data || {},
@@ -332,20 +331,29 @@ export function useNotifications(): UseNotificationsReturn {
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
         const { data } = response.notification.request.content;
+        const requestIdentifier = response.notification.request.identifier;
+        const handledId =
+          getNotificationId({
+            id: requestIdentifier,
+            data,
+          }) || requestIdentifier;
 
-        // Navigate based on notification type
-        if (data?.type === "contest" && data?.contestId) {
-          router.push(`/contest-detail?contestId=${data.contestId}`);
-        } else if (data?.type === "prize") {
-          router.push("/dashboard");
-        } else if (data?.type === "entry") {
-          router.push("/all-activities");
-        } else {
-          router.push("/notifications");
+        if (handledResponseIdsRef.current.has(handledId)) {
+          return;
         }
+        handledResponseIdsRef.current.add(handledId);
 
-        // Mark as read when tapped
-        void markAsRead(response.notification.request.identifier);
+        const target = resolveNotificationTarget({
+          id: handledId,
+          title: response.notification.request.content.title || "Notification",
+          body: response.notification.request.content.body || "",
+          type: typeof data?.type === "string" ? data.type : undefined,
+          timestamp: new Date().toISOString(),
+          data,
+        });
+
+        router.push(target.href);
+        void markAsRead(handledId);
       });
 
     return () => {
@@ -353,7 +361,47 @@ export function useNotifications(): UseNotificationsReturn {
         responseListener.current.remove();
       }
     };
-  }, [markAsRead, appendNotification]);
+  }, [markAsRead]);
+
+  useEffect(() => {
+    if (isExpoGo) {
+      return;
+    }
+
+    const handleInitialNotificationResponse = async () => {
+      const response = await Notifications.getLastNotificationResponseAsync();
+      if (!response) {
+        return;
+      }
+
+      const { data } = response.notification.request.content;
+      const requestIdentifier = response.notification.request.identifier;
+      const handledId =
+        getNotificationId({
+          id: requestIdentifier,
+          data,
+        }) || requestIdentifier;
+
+      if (handledResponseIdsRef.current.has(handledId)) {
+        return;
+      }
+      handledResponseIdsRef.current.add(handledId);
+
+      const target = resolveNotificationTarget({
+        id: handledId,
+        title: response.notification.request.content.title || "Notification",
+        body: response.notification.request.content.body || "",
+        type: typeof data?.type === "string" ? data.type : undefined,
+        timestamp: new Date().toISOString(),
+        data,
+      });
+
+      router.push(target.href);
+      void markAsRead(handledId);
+    };
+
+    void handleInitialNotificationResponse();
+  }, [markAsRead]);
 
   // Clear badge on app open
   useEffect(() => {
