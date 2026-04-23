@@ -3,7 +3,7 @@ import { z } from 'zod';
 import SafeAsyncStorage from '../lib/SafeAsyncStorage';
 
 // API Configuration
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://chorus-jumping-interventions-therapeutic.trycloudflare.com';
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL || '').replace(/\/+$/, '');
 
 /**
  * Normalizes an image path from the backend into a full URL.
@@ -31,6 +31,7 @@ const STORAGE_KEYS = {
   REFRESH_TOKEN: 'refresh_token',
   USER_DATA: 'user_data',
 };
+const SESSION_EXPIRED_KEY = 'SESSION_EXPIRED';
 
 const APP_ALLOWED_ROLE = 'participant';
 const APP_ROLE_RESTRICTED_ERROR = {
@@ -248,6 +249,7 @@ const createSupportTicketSchema = z.object({
 // HTTP Client with token management
 class ApiClient {
   private baseURL: string;
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
@@ -255,7 +257,6 @@ class ApiClient {
 
   private async getAuthHeaders(): Promise<Record<string, string>> {
     const accessToken = await SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
-    console.log('getAuthHeaders - token exists:', !!accessToken, 'token preview:', accessToken ? accessToken.substring(0, 20) + '...' : 'none');
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -268,29 +269,39 @@ class ApiClient {
     return headers;
   }
 
-  private lastRequestContext: { method: string; body?: any } | null = null;
+  private async parseResponseBody(response: Response): Promise<any> {
+    const rawBody = await response.text();
 
-  private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
-    const data = await response.json();
+    if (!rawBody) {
+      return undefined;
+    }
+
+    try {
+      return JSON.parse(rawBody);
+    } catch {
+      return rawBody;
+    }
+  }
+
+  private async handleResponse<T>(
+    response: Response,
+    requestContext: { url: string; method: string; body?: any; canRetry: boolean }
+  ): Promise<ApiResponse<T>> {
+    const data = await this.parseResponseBody(response);
 
     if (!response.ok) {
       // Handle token refresh for 401 errors
-      if (response.status === 401 && !response.url.includes('/auth/refresh')) {
-        console.log('handleResponse: Got 401, attempting token refresh for retry...');
+      if (requestContext.canRetry && response.status === 401 && !response.url.includes('/auth/refresh')) {
         const refreshSuccess = await this.refreshToken();
-        console.log('handleResponse: Token refresh result:', refreshSuccess);
-        if (refreshSuccess && this.lastRequestContext) {
-          console.log('handleResponse: Retrying request with method:', this.lastRequestContext.method);
-          // Retry with original method and body
-          return this.rawFetch<T>(response.url, this.lastRequestContext.method, this.lastRequestContext.body);
+        if (refreshSuccess) {
+          return this.rawFetch<T>(requestContext.url, requestContext.method, requestContext.body, false);
         }
-        console.log('handleResponse: Token refresh failed or no context, cannot retry');
       }
 
       // Backend returns error in different formats:
       // 1. { error: { title, status } }
       // 2. { title, status, code, type } - direct error response
-      const error = data.error || (data.title ? {
+      const error = data?.error || (data?.title ? {
         title: data.title,
         status: data.status || response.status,
         code: data.code
@@ -316,14 +327,21 @@ class ApiClient {
     path: string,
     method: string,
     body?: any,
+    retryOnUnauthorized = true,
   ): Promise<ApiResponse<T>> {
     try {
-      const url = path.startsWith('http') ? path : `${this.baseURL}${path}`;
-      console.log(`rawFetch: ${method} ${url}`);
-      const headers = await this.getAuthHeaders();
+      if (!this.baseURL) {
+        return {
+          success: false,
+          error: {
+            title: 'API URL is not configured. Set EXPO_PUBLIC_API_URL for this build.',
+            status: 500,
+          },
+        };
+      }
 
-      // Store context for potential retry after token refresh
-      this.lastRequestContext = { method, body };
+      const url = path.startsWith('http') ? path : `${this.baseURL}${path}`;
+      const headers = await this.getAuthHeaders();
 
       const response = await fetch(url, {
         method,
@@ -331,7 +349,10 @@ class ApiClient {
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
 
-      return await this.handleResponse<T>(response);
+      return await this.handleResponse<T>(
+        response,
+        { url, method, body, canRetry: retryOnUnauthorized }
+      );
     } catch (error) {
       return {
         success: false,
@@ -379,7 +400,6 @@ class ApiClient {
       }
       // Force flush to ensure tokens are immediately available
       await SafeAsyncStorage.flush();
-      console.log('Tokens flushed to storage');
     } catch (error) {
       console.log('Error setting tokens:', error);
     }
@@ -417,15 +437,26 @@ class ApiClient {
   }
 
   public async refreshToken(): Promise<boolean> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = this.performRefreshToken();
+
+    try {
+      return await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
+    }
+  }
+
+  private async performRefreshToken(): Promise<boolean> {
     try {
       const { refreshToken } = await this.getTokens();
 
       if (!refreshToken) {
-        console.log('No refresh token available');
         return false;
       }
-
-      console.log('Attempting token refresh...');
 
       // Use raw fetch without Authorization header to avoid sending expired token
       const response = await fetch(`${this.baseURL}/v1/auth/refresh`, {
@@ -436,19 +467,14 @@ class ApiClient {
         body: JSON.stringify({ refreshToken }),
       });
 
-      const data = await response.json();
-      console.log('Token refresh response:', response.status, data);
+      const data = await this.parseResponseBody(response);
 
       if (!response.ok) {
-        console.log('Token refresh failed:', data);
-
         // If refresh token is invalid/expired, clear auth and return false
-        // This will trigger a logout/redirect to login
-        if (data.code === 'INVALID_REFRESH' || response.status === 401) {
-          console.log('Refresh token is invalid or expired - session ended');
+        if (data?.code === 'INVALID_REFRESH' || response.status === 401) {
           await this.clearTokens();
           // Store a flag that user needs to re-login
-          await SafeAsyncStorage.setItem('SESSION_EXPIRED', 'true');
+          await SafeAsyncStorage.setItem(SESSION_EXPIRED_KEY, 'true');
         }
 
         return false;
@@ -456,13 +482,9 @@ class ApiClient {
 
       // Backend returns { tokens: { accessToken, refreshToken } } or { accessToken, refreshToken }
       const tokens = data.tokens || data;
-      console.log('Extracted tokens - accessToken exists:', !!tokens.accessToken, 'refreshToken exists:', !!tokens.refreshToken);
       if (tokens.accessToken && tokens.refreshToken) {
         await this.setTokens(tokens.accessToken, tokens.refreshToken);
-        // Verify tokens were saved
-        const verifyTokens = await this.getTokens();
-        console.log('Token save verification - accessToken saved:', !!verifyTokens.accessToken, 'refreshToken saved:', !!verifyTokens.refreshToken);
-        console.log('Token refresh successful');
+        await SafeAsyncStorage.removeItem(SESSION_EXPIRED_KEY);
         return true;
       }
 
@@ -513,8 +535,6 @@ export const authApi = {
     const validatedData = loginSchema.parse(data);
     const response = await apiClient.post<AuthResponse>('/v1/auth/login', validatedData);
 
-    console.log('Login API response:', JSON.stringify(response, null, 2));
-
     if (response.success && response.data) {
       if (!isParticipantAppUser(response.data.user)) {
         await apiClient.clearTokens();
@@ -532,9 +552,6 @@ export const authApi = {
         };
       }
 
-      console.log('Access token exists:', !!response.data.tokens?.accessToken);
-      console.log('Refresh token exists:', !!response.data.tokens?.refreshToken);
-
       // Store tokens
       await apiClient.setTokens(response.data.tokens?.accessToken || '', response.data.tokens?.refreshToken || '');
 
@@ -549,19 +566,7 @@ export const authApi = {
       await SafeAsyncStorage.flush();
 
       // Clear session expired flag on successful login
-      await SafeAsyncStorage.removeItem('SESSION_EXPIRED');
-
-      // Verify storage worked
-      const [storedUser, storedAccess, storedRefresh] = await Promise.all([
-        SafeAsyncStorage.getItem(STORAGE_KEYS.USER_DATA),
-        SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
-        SafeAsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
-      ]);
-      console.log('=== LOGIN STORAGE VERIFICATION ===');
-      console.log('userData stored:', !!storedUser);
-      console.log('accessToken stored:', !!storedAccess);
-      console.log('refreshToken stored:', !!storedRefresh);
-      console.log('==================================');
+      await SafeAsyncStorage.removeItem(SESSION_EXPIRED_KEY);
     }
 
     return response;
@@ -574,12 +579,20 @@ export const authApi = {
   },
 
   // Logout user
-  async logout(refreshToken: string): Promise<ApiResponse<void>> {
+  async logout(): Promise<ApiResponse<void>> {
     try {
+      const { refreshToken } = await apiClient.getTokens();
+
+      if (!refreshToken) {
+        await apiClient.clearTokens();
+        return { success: true };
+      }
+
       const response = await apiClient.post<void>('/v1/auth/logout', { refreshToken });
       await apiClient.clearTokens();
-      return { success: true, data: response.data };
+      return response.success ? response : { success: true };
     } catch (error: any) {
+      await apiClient.clearTokens();
       return {
         success: false,
         error: error.response?.data || { title: "Logout failed", status: 500 },
@@ -614,57 +627,30 @@ export const authApi = {
 
   // Refresh tokens - note: this uses raw fetch to avoid sending expired access token
   async refreshTokens(): Promise<ApiResponse<{ accessToken: string; refreshToken: string }>> {
-    const { refreshToken } = await apiClient.getTokens();
+    const didRefresh = await apiClient.refreshToken();
 
-    if (!refreshToken) {
+    if (!didRefresh) {
       return {
         success: false,
-        error: { title: 'No refresh token available', status: 401 },
+        error: { title: 'Token refresh failed', status: 401 },
       };
     }
 
-    try {
-      // Use raw fetch without Authorization header to avoid sending expired token
-      const response = await fetch(`${API_BASE_URL}/v1/auth/refresh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refreshToken }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // If refresh token is invalid/expired, clear auth
-        if (data.code === 'INVALID_REFRESH' || response.status === 401) {
-          console.log('Refresh token invalid - clearing session');
-          await apiClient.clearTokens();
-          await SafeAsyncStorage.setItem('SESSION_EXPIRED', 'true');
-        }
-
-        return {
-          success: false,
-          error: data.error || { title: 'Token refresh failed', status: response.status },
-        };
-      }
-
-      // Backend returns { tokens: { accessToken, refreshToken } } or { accessToken, refreshToken }
-      const tokens = data.tokens || data;
-      if (tokens.accessToken && tokens.refreshToken) {
-        await apiClient.setTokens(tokens.accessToken, tokens.refreshToken);
-        // Clear session expired flag on success
-        await SafeAsyncStorage.removeItem('SESSION_EXPIRED');
-      }
-
-      return { success: true, data: tokens };
-    } catch (error) {
-      console.log('Token refresh error:', error);
+    const tokens = await apiClient.getTokens();
+    if (!tokens.accessToken || !tokens.refreshToken) {
       return {
         success: false,
-        error: { title: 'Network error during token refresh', status: 0 },
+        error: { title: 'Token refresh completed without valid tokens', status: 500 },
       };
     }
+
+    return {
+      success: true,
+      data: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      },
+    };
   },
 
   // Forgot password
@@ -694,8 +680,6 @@ export const authApi = {
   // Change password (authenticated) - Profile section
   // Uses new endpoint: POST /v1/me/password
   async changePassword(data: { oldPassword?: string; newPassword?: string; currentPassword?: string }): Promise<ApiResponse<void>> {
-    console.log('API: changePassword called with data:', JSON.stringify(data));
-
     const password = data.oldPassword || data.currentPassword;
     if (!password || !data.newPassword) {
       return {
@@ -709,7 +693,6 @@ export const authApi = {
       oldPassword: password,
       newPassword: data.newPassword,
     };
-    console.log('API: Calling /v1/me/password with:', JSON.stringify(payload));
 
     return apiClient.post<void>('/v1/me/password', payload);
   },

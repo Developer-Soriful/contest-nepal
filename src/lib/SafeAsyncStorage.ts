@@ -1,10 +1,40 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { requireOptionalNativeModule } from 'expo-modules-core';
+import { Platform } from 'react-native';
+
+type ExpoSecureStoreNativeModule = {
+  getValueWithKeyAsync?: (key: string, options?: Record<string, unknown>) => Promise<string | null>;
+  setValueWithKeyAsync?: (
+    value: string,
+    key: string,
+    options?: Record<string, unknown>
+  ) => Promise<void>;
+  deleteValueWithKeyAsync?: (key: string, options?: Record<string, unknown>) => Promise<void>;
+};
+
+let secureStoreModule: ExpoSecureStoreNativeModule | null | undefined;
+
+const getSecureStoreModule = (): ExpoSecureStoreNativeModule | null => {
+  if (secureStoreModule !== undefined) {
+    return secureStoreModule;
+  }
+
+  if (Platform.OS === 'web') {
+    secureStoreModule = null;
+    return secureStoreModule;
+  }
+
+  secureStoreModule = requireOptionalNativeModule<ExpoSecureStoreNativeModule>('ExpoSecureStore');
+
+  return secureStoreModule;
+};
 
 // Production-ready AsyncStorage with fallback to in-memory storage
 class SafeAsyncStorage {
   private static memoryStorage: { [key: string]: string } = {};
   private static isInitialized = false;
   private static initPromise: Promise<void> | null = null;
+  private static secureKeys = new Set(['access_token', 'refresh_token']);
 
   private static async initialize(): Promise<void> {
     if (SafeAsyncStorage.isInitialized) return;
@@ -36,12 +66,47 @@ class SafeAsyncStorage {
     console.warn('AsyncStorage failed to initialize after retries, falling back to memory storage');
   }
 
+  private static canUseSecureStore(): boolean {
+    const secureStore = getSecureStoreModule();
+    return Boolean(secureStore?.getValueWithKeyAsync && secureStore?.setValueWithKeyAsync);
+  }
+
+  private static shouldUseSecureStore(key: string): boolean {
+    return SafeAsyncStorage.secureKeys.has(key) && SafeAsyncStorage.canUseSecureStore();
+  }
+
   static async getItem(key: string): Promise<string | null> {
     await SafeAsyncStorage.initialize();
 
     try {
+      if (SafeAsyncStorage.shouldUseSecureStore(key)) {
+        const secureStore = getSecureStoreModule();
+        if (!secureStore?.getValueWithKeyAsync || !secureStore.setValueWithKeyAsync) {
+          return SafeAsyncStorage.memoryStorage[key] || null;
+        }
+
+        const secureValue = await secureStore.getValueWithKeyAsync(key);
+        if (secureValue !== null) {
+          SafeAsyncStorage.memoryStorage[key] = secureValue;
+          return secureValue;
+        }
+
+        if (typeof AsyncStorage !== 'undefined' && AsyncStorage && AsyncStorage.getItem) {
+          const legacyValue = await AsyncStorage.getItem(key);
+          if (legacyValue !== null) {
+            await secureStore.setValueWithKeyAsync(legacyValue, key);
+            await AsyncStorage.removeItem(key);
+            SafeAsyncStorage.memoryStorage[key] = legacyValue;
+            return legacyValue;
+          }
+        }
+      }
+
       if (typeof AsyncStorage !== 'undefined' && AsyncStorage && AsyncStorage.getItem) {
         const value = await AsyncStorage.getItem(key);
+        if (value !== null) {
+          SafeAsyncStorage.memoryStorage[key] = value;
+        }
         return value;
       }
       return SafeAsyncStorage.memoryStorage[key] || null;
@@ -60,11 +125,31 @@ class SafeAsyncStorage {
     await SafeAsyncStorage.initialize();
 
     try {
+      if (SafeAsyncStorage.shouldUseSecureStore(key)) {
+        const secureStore = getSecureStoreModule();
+        if (!secureStore) {
+          SafeAsyncStorage.memoryStorage[key] = value;
+          return;
+        }
+
+        if (!secureStore.setValueWithKeyAsync) {
+          SafeAsyncStorage.memoryStorage[key] = value;
+          return;
+        }
+
+        await secureStore.setValueWithKeyAsync(value, key);
+        SafeAsyncStorage.memoryStorage[key] = value;
+
+        if (typeof AsyncStorage !== 'undefined' && AsyncStorage && AsyncStorage.removeItem) {
+          await AsyncStorage.removeItem(key);
+        }
+        return;
+      }
+
       if (typeof AsyncStorage !== 'undefined' && AsyncStorage && AsyncStorage.setItem) {
         await AsyncStorage.setItem(key, value);
         // Also store in memory for sync access
         SafeAsyncStorage.memoryStorage[key] = value;
-        console.log(`SafeAsyncStorage: Saved "${key}" to AsyncStorage`);
         return;
       }
       SafeAsyncStorage.memoryStorage[key] = value;
@@ -92,6 +177,13 @@ class SafeAsyncStorage {
     await SafeAsyncStorage.initialize();
 
     try {
+      if (SafeAsyncStorage.shouldUseSecureStore(key)) {
+        const secureStore = getSecureStoreModule();
+        if (secureStore?.deleteValueWithKeyAsync) {
+          await secureStore.deleteValueWithKeyAsync(key);
+        }
+      }
+
       if (typeof AsyncStorage !== 'undefined' && AsyncStorage && AsyncStorage.removeItem) {
         await AsyncStorage.removeItem(key);
         delete SafeAsyncStorage.memoryStorage[key];
@@ -124,6 +216,19 @@ class SafeAsyncStorage {
     await SafeAsyncStorage.initialize();
 
     try {
+      await Promise.all(
+        [...SafeAsyncStorage.secureKeys].map((key) =>
+          SafeAsyncStorage.shouldUseSecureStore(key)
+            ? (async () => {
+                const secureStore = getSecureStoreModule();
+                if (secureStore?.deleteValueWithKeyAsync) {
+                  await secureStore.deleteValueWithKeyAsync(key);
+                }
+              })()
+            : Promise.resolve()
+        )
+      );
+
       if (typeof AsyncStorage !== 'undefined' && AsyncStorage && AsyncStorage.clear) {
         await AsyncStorage.clear();
         SafeAsyncStorage.memoryStorage = {};
@@ -141,7 +246,10 @@ class SafeAsyncStorage {
     return typeof AsyncStorage !== 'undefined' && AsyncStorage !== null;
   }
 
-  static getStorageType(): 'async' | 'memory' {
+  static getStorageType(): 'secure' | 'async' | 'memory' {
+    if (SafeAsyncStorage.canUseSecureStore()) {
+      return 'secure';
+    }
     return SafeAsyncStorage.isAvailable() ? 'async' : 'memory';
   }
 }

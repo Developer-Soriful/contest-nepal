@@ -49,6 +49,7 @@ const EditProfile = () => {
 
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [errors, setErrors] = useState<Partial<FormData>>({});
+    const avatarUri = selectedImage ?? user?.profile?.avatarUrl ?? undefined;
 
     // Load user data from AuthContext on mount
     useEffect(() => {
@@ -210,11 +211,11 @@ const EditProfile = () => {
                     {/* Avatar Section */}
                     <View style={styles.avatarSection}>
                         <View style={styles.avatarContainer}>
-                            {(selectedImage || user?.profile?.avatarUrl) && !avatarError ? (
+                            {avatarUri && !avatarError ? (
                                 <Image
-                                    key={selectedImage || user?.profile?.avatarUrl} // Force re-render when avatar changes
+                                    key={avatarUri} // Force re-render when avatar changes
                                     source={{
-                                        uri: selectedImage || user?.profile?.avatarUrl
+                                        uri: avatarUri
                                     }}
                                     style={styles.avatar}
                                     onError={() => setAvatarError(true)}

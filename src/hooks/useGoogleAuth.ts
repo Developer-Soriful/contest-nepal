@@ -1,4 +1,4 @@
-import { useGoogleAuthSimple } from './useGoogleAuthSimple';
+import { useGoogleAuthSimple } from "./useGoogleAuthSimple";
 
 export function useGoogleAuth() {
   return useGoogleAuthSimple();

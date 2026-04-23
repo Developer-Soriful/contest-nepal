@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
   REFRESH_TOKEN: 'refresh_token',
   USER_DATA: 'user_data',
 };
+const SESSION_EXPIRED_KEY = 'SESSION_EXPIRED';
 
 const APP_ALLOWED_ROLE = 'participant';
 
@@ -76,11 +77,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const initializeAuth = async () => {
     try {
       // Check if session was marked as expired
-      const sessionExpired = await SafeAsyncStorage.getItem('SESSION_EXPIRED');
+      const sessionExpired = await SafeAsyncStorage.getItem(SESSION_EXPIRED_KEY);
       if (sessionExpired === 'true') {
-        console.log('Auth init - Session expired flag found, clearing auth and redirecting to login');
         await clearAuthData();
-        await SafeAsyncStorage.removeItem('SESSION_EXPIRED');
+        await SafeAsyncStorage.removeItem(SESSION_EXPIRED_KEY);
         setIsLoading(false);
         return;
       }
@@ -92,39 +92,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
         SafeAsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
       ]);
 
-      console.log('Auth init - userData exists:', !!userData);
-      console.log('Auth init - accessToken exists:', !!accessToken);
-      console.log('Auth init - refreshToken exists:', !!refreshToken);
-
       if (userData && accessToken) {
         // Restore user from storage immediately - this ensures user stays logged in
         const parsedUser = JSON.parse(userData);
         if (!isAllowedAppUser(parsedUser)) {
-          console.log('Auth init - Non-participant session detected, clearing auth data');
           await clearAuthData();
           setIsLoading(false);
           return;
         }
         setUser(parsedUser);
-        console.log('Auth init - User restored from storage');
 
         // Background: try to refresh user data and validate token
-        // But DON'T clear auth if it fails - let the user stay logged in
         authApi.getCurrentUser().then(response => {
           if (response.success && response.data) {
             setUser(response.data);
             SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data));
-            console.log('Auth init - User data refreshed from API');
           } else if (response.error?.code === 'APP_ROLE_NOT_ALLOWED') {
-            console.log('Auth init - Background refresh found non-participant account, clearing auth data');
             clearAuthData();
           }
-        }).catch(err => {
-          console.log('Auth init - Background user refresh failed, keeping stored data:', err);
-        });
+        }).catch(() => undefined);
       } else if (refreshToken && !accessToken) {
         // No access token but have refresh token - try to refresh
-        console.log('Auth init - No access token, trying refresh...');
         const refreshResponse = await authApi.refreshTokens();
         if (refreshResponse.success && refreshResponse.data) {
           // Refresh succeeded, now get user
@@ -132,35 +120,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (userResponse.success && userResponse.data && isAllowedAppUser(userResponse.data)) {
             setUser(userResponse.data);
             await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userResponse.data));
-            console.log('Auth init - User restored via token refresh');
           } else {
-            console.log('Auth init - Refreshed session is not allowed in participant app, clearing auth data');
             await clearAuthData();
           }
         } else {
-          // Refresh failed - clear everything
-          console.log('Auth init - Token refresh failed, clearing auth data');
           await clearAuthData();
         }
-      } else {
-        console.log('Auth init - No stored auth data found');
       }
     } catch (error) {
       console.log('Auth initialization error:', error);
       // Don't clear data on error - let user stay logged in with stored data
     } finally {
-      // Debug: print what's in storage
-      const [userData, accessToken, refreshToken] = await Promise.all([
-        SafeAsyncStorage.getItem(STORAGE_KEYS.USER_DATA),
-        SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
-        SafeAsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
-      ]);
-      console.log('=== APP START STORAGE ===');
-      console.log('userData exists:', !!userData);
-      console.log('accessToken exists:', !!accessToken);
-      console.log('refreshToken exists:', !!refreshToken);
-      console.log('isAuthenticated:', Boolean(userData && accessToken));
-      console.log('========================');
       setIsLoading(false);
     }
   };
@@ -186,6 +156,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (response.success && response.data) {
         if (response.data.tokens?.accessToken) {
           setUser(response.data.user);
+        } else if (response.data.emailVerificationRequired) {
+          await clearAuthData();
         } else {
           await clearAuthData();
           return {
@@ -362,14 +334,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
             response.error?.title || "Invalid verification code"
           );
         }
+        return response;
       } else {
         Alert.alert("Error", "Email and verification code are required");
+        return {
+          success: false,
+          error: { title: 'Email and verification code are required', status: 400 },
+        };
       }
     } catch (error) {
       console.log('Email verification error:', error);
       Alert.alert("Error", "An unexpected error occurred. Please try again.");
+      return {
+        success: false,
+        error: { title: 'Verification failed', status: 500 },
+      };
     }
-    return { success: false, error: { title: 'Verification failed', status: 500 } };
   };
 
   const changePassword = async (data: {
@@ -403,8 +383,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
             response.error?.title || "Failed to change password"
           );
         }
+        return response;
       } else {
         Alert.alert("Error", "Current password and new password are required");
+        return {
+          success: false,
+          error: { title: 'Current password and new password are required', status: 400 },
+        };
       }
     } catch (error) {
       console.log('Change password error:', error);
@@ -413,7 +398,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         error: { title: 'Password change failed', status: 500 },
       };
     }
-    return { success: false, error: { title: 'Missing fields', status: 400 } };
   };
 
   const resendVerificationEmail = async (email: string): Promise<ApiResponse<void>> => {
@@ -445,6 +429,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           response.error?.title || "Failed to send verification email"
         );
       }
+      return response;
     } catch (error) {
       console.log('Resend verification email error:', error);
       return {
@@ -452,23 +437,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         error: { title: 'Failed to send verification email', status: 500 },
       };
     }
-    return { success: false, error: { title: 'Failed to send', status: 500 } };
   };
 
   const refreshUser = useCallback(async (): Promise<void> => {
     try {
-      console.log('[AuthContext] refreshUser called - fetching from API...');
       const response = await authApi.getCurrentUser();
-      console.log('[AuthContext] API response success:', response.success);
-      console.log('[AuthContext] API response data:', response.data);
       
       if (response.success && response.data) {
-        console.log('[AuthContext] Setting user state with:', response.data.profile?.displayName);
         setUser(response.data);
         await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data));
-        console.log('[AuthContext] User state updated and saved to storage');
       } else {
-        console.log('[AuthContext] API response failed or no data:', response.error);
         if (response.error?.code === 'APP_ROLE_NOT_ALLOWED') {
           await clearAuthData();
         }
@@ -484,11 +462,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       SafeAsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN),
       SafeAsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
     ]);
-    console.log('=== STORAGE DEBUG ===');
-    console.log('userData:', userData ? 'EXISTS' : 'NULL');
-    console.log('accessToken:', accessToken ? 'EXISTS' : 'NULL');
-    console.log('refreshToken:', refreshToken ? 'EXISTS' : 'NULL');
-    console.log('====================');
+    console.log('Storage debug:', {
+      userData: Boolean(userData),
+      accessToken: Boolean(accessToken),
+      refreshToken: Boolean(refreshToken),
+    });
   };
 
   const value: AuthContextType = useMemo(() => ({
