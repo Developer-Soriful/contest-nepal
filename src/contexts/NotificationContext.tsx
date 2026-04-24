@@ -8,19 +8,21 @@ const isExpoGo = Constants.appOwnership === "expo";
 interface NotificationContextType {
   pushToken: string | null;
   notificationPermission: boolean;
-  notifications: Array<{
+  notifications: {
     id: string;
     title: string;
     body: string;
     data?: Record<string, any>;
     timestamp: string;
     read: boolean;
-  }>;
+  }[];
   unreadCount: number;
   isRefreshing: boolean;
   registerPushNotifications: () => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
+  deleteOne: (id: string) => Promise<void>;
+  deleteAll: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
 }
 
@@ -33,32 +35,6 @@ interface NotificationProviderProps {
 }
 
 export function NotificationProvider({ children }: NotificationProviderProps) {
-  // Skip all notification setup in Expo Go
-  if (isExpoGo) {
-    console.log("📱 NotificationProvider - Expo Go detected, skipping push notification setup");
-
-    // Provide safe fallback values
-    return (
-      <NotificationContext.Provider
-        value={{
-          pushToken: null,
-          notificationPermission: false,
-          notifications: [],
-          unreadCount: 0,
-          isRefreshing: false,
-          registerPushNotifications: async () => {
-            console.log("📱 Push notifications not available in Expo Go");
-          },
-          markAsRead: async () => {},
-          markAllAsRead: async () => {},
-          refreshNotifications: async () => {},
-        }}
-      >
-        {children}
-      </NotificationContext.Provider>
-    );
-  }
-
   const {
     pushToken,
     notificationPermission,
@@ -68,12 +44,28 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     registerPushNotifications,
     markAsRead,
     markAllAsRead,
+    deleteOne,
+    deleteAll,
     refreshNotifications,
   } = useNotifications();
 
-  return (
-    <NotificationContext.Provider
-      value={{
+  const contextValue: NotificationContextType = isExpoGo
+    ? {
+        pushToken: null,
+        notificationPermission: false,
+        notifications: [],
+        unreadCount: 0,
+        isRefreshing: false,
+        registerPushNotifications: async () => {
+          console.log("📱 Push notifications not available in Expo Go");
+        },
+        markAsRead: async () => {},
+        markAllAsRead: async () => {},
+        deleteOne: async () => {},
+        deleteAll: async () => {},
+        refreshNotifications: async () => {},
+      }
+    : {
         pushToken,
         notificationPermission,
         notifications,
@@ -82,9 +74,13 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         registerPushNotifications,
         markAsRead,
         markAllAsRead,
+        deleteOne,
+        deleteAll,
         refreshNotifications,
-      }}
-    >
+      };
+
+  return (
+    <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );

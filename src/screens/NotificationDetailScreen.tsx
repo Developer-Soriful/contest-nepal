@@ -1,4 +1,5 @@
 import Header from "@/src/components/Header";
+import { useNotificationContext } from "@/src/contexts/NotificationContext";
 import {
   buildNotificationDetailHref,
   getNotificationContestId,
@@ -10,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo } from "react";
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -42,6 +44,7 @@ function formatTime(timestamp?: string) {
 }
 
 const NotificationDetailScreen = () => {
+  const { deleteOne } = useNotificationContext();
   const params = useLocalSearchParams<{
     id?: string;
     title?: string;
@@ -88,6 +91,24 @@ const NotificationDetailScreen = () => {
   const iconEntry = categoryIconMap[category] ?? categoryIconMap.default;
   const contestId = getNotificationContestId(notification);
   const entryId = getNotificationEntryId(notification);
+
+  const handleDelete = () => {
+    if (!notification.id) {
+      return;
+    }
+
+    Alert.alert("Delete notification", "This notification will be removed from your inbox.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          void deleteOne(notification.id as string);
+          router.replace("/notifications");
+        },
+      },
+    ]);
+  };
 
   const renderIcon = () => {
     if (iconEntry.lib === "material") {
@@ -190,6 +211,17 @@ const NotificationDetailScreen = () => {
           <Ionicons name="list-outline" size={18} color="#A30000" />
           <Text style={styles.secondaryButtonText}>Back to Notifications</Text>
         </TouchableOpacity>
+
+        {notification.id ? (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            activeOpacity={0.8}
+            onPress={handleDelete}
+          >
+            <Ionicons name="trash-outline" size={18} color="#D92D20" />
+            <Text style={styles.deleteButtonText}>Delete Notification</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -348,6 +380,22 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#A30000",
+  },
+  deleteButton: {
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    backgroundColor: "#FFF5F5",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  deleteButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#D92D20",
   },
 });
 

@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
+import { AppState } from "react-native";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "../contexts/AuthContext";
@@ -13,11 +14,15 @@ import {
 import { authApi } from "../services/api";
 import {
     clearBadge,
+    presentForegroundNotification,
     registerForPushNotificationsAsync,
     removePushTokenFromBackend,
+    setBadgeCount,
     sendPushTokenToBackend,
 } from "../services/notifications";
 import {
+    deleteAllNotifications,
+    deleteNotification,
     getMyNotifications,
     markAllNotificationsAsRead,
     markNotificationAsRead,
@@ -72,6 +77,8 @@ interface UseNotificationsReturn {
   registerPushNotifications: () => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
+  deleteOne: (id: string) => Promise<void>;
+  deleteAll: () => Promise<void>;
   refreshNotifications: () => Promise<void>;
 }
 
@@ -86,6 +93,7 @@ export function useNotifications(): UseNotificationsReturn {
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const handledResponseIdsRef = useRef<Set<string>>(new Set());
+  const appStateRef = useRef(AppState.currentState);
 
   // Refs to prevent duplicate registrations
   const isRegisteringRef = useRef(false);
@@ -259,6 +267,39 @@ export function useNotifications(): UseNotificationsReturn {
     }
   }, [notifications, refreshNotifications]);
 
+  const deleteOne = useCallback(async (id: string) => {
+    let removedUnread = false;
+
+    setNotifications((prev) => {
+      const target = prev.find((item) => item.id === id);
+      removedUnread = !!target && !target.read;
+      return prev.filter((item) => item.id !== id);
+    });
+
+    if (removedUnread) {
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    }
+
+    const response = await deleteNotification(id);
+    if (!response.success) {
+      await refreshNotifications();
+    }
+  }, [refreshNotifications]);
+
+  const deleteAll = useCallback(async () => {
+    if (notifications.length === 0) {
+      return;
+    }
+
+    setNotifications([]);
+    setUnreadCount(0);
+
+    const response = await deleteAllNotifications();
+    if (!response.success) {
+      await refreshNotifications();
+    }
+  }, [notifications.length, refreshNotifications]);
+
   // Register when user becomes authenticated
   useEffect(() => {
     // Skip push registration in Expo Go
@@ -319,7 +360,7 @@ export function useNotifications(): UseNotificationsReturn {
         notificationListener.current.remove();
       }
     };
-  }, []);
+  }, [appendNotification]);
 
   // Listen for notification responses (user taps notification)
   useEffect(() => {
@@ -362,6 +403,16 @@ export function useNotifications(): UseNotificationsReturn {
       }
     };
   }, [markAsRead]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      appStateRef.current = nextState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (isExpoGo) {
@@ -412,6 +463,14 @@ export function useNotifications(): UseNotificationsReturn {
     clearBadge();
   }, []);
 
+  useEffect(() => {
+    if (isExpoGo) {
+      return;
+    }
+
+    void setBadgeCount(unreadCount);
+  }, [unreadCount]);
+
   // Handle logout - remove push token
   useEffect(() => {
     // Skip in Expo Go (no token was registered)
@@ -460,6 +519,24 @@ export function useNotifications(): UseNotificationsReturn {
 
       socket.on("notification:new", (payload: BackendNotificationPayload) => {
         appendNotification(payload);
+
+        const notificationId =
+          getNotificationId({
+            id: payload.id || payload._id,
+            data: payload.data,
+          }) || String(payload.id || payload._id || "");
+
+        if (appStateRef.current === "active" && notificationId) {
+          void presentForegroundNotification(
+            payload.title || "New Notification",
+            payload.body || "",
+            {
+              ...(payload.data || {}),
+              notificationId,
+              type: normalizeNotificationType(payload.data?.type || payload.type),
+            }
+          );
+        }
       });
 
       socket.on("connect_error", (error) => {
@@ -487,6 +564,8 @@ export function useNotifications(): UseNotificationsReturn {
     registerPushNotifications,
     markAsRead,
     markAllAsRead,
+    deleteOne,
+    deleteAll,
     refreshNotifications,
   };
 }

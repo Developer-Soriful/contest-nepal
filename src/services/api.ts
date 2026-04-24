@@ -242,6 +242,25 @@ export interface UserStats {
   achievements: Array<{ title: string; description: string; icon: string; color: string }>;
 }
 
+export interface PromotionalBannerItem {
+  id: string;
+  title: string;
+  subtitle: string;
+  imageUrl: string;
+  ctaLabel: string;
+  sortOrder: number;
+  isActive: boolean;
+  contest: {
+    id: string;
+    title: string;
+    status: string;
+    coverImageUrl: string;
+    prizeDescription: string;
+    participantCount: number;
+    endDate: string;
+  } | null;
+}
+
 export interface Contest {
   _id: string;
   title: string;
@@ -1385,6 +1404,36 @@ export const authApi = {
     }
   },
 
+  async getPromotionalBanners(): Promise<ApiResponse<{ items: PromotionalBannerItem[] }>> {
+    try {
+      console.log("API: Fetching promotional banners");
+      const response = await apiClient.get<{
+        items: PromotionalBannerItem[];
+      }>("/v1/promotional-banners");
+
+      if (response.success && response.data?.items) {
+        response.data.items = response.data.items.map((item) => ({
+          ...item,
+          imageUrl: getImageUrl(item.imageUrl || item.contest?.coverImageUrl),
+          contest: item.contest
+            ? {
+                ...item.contest,
+                coverImageUrl: getImageUrl(item.contest.coverImageUrl),
+              }
+            : null,
+        }));
+      }
+
+      return response;
+    } catch (error) {
+      console.log("API: Error fetching promotional banners:", error);
+      return {
+        success: false,
+        error: { title: "Failed to fetch promotional banners", status: 500 },
+      };
+    }
+  },
+
   // Get tokens from storage
   async getTokens(): Promise<{ accessToken: string | null; refreshToken: string | null }> {
     return apiClient.getTokens();
@@ -1585,4 +1634,5 @@ export const contestApi = {
   getCalendarEvents: authApi.getCalendarEvents,
   submitVote: authApi.submitVote,
   getContestants: authApi.getContestants,
+  getPromotionalBanners: authApi.getPromotionalBanners,
 };

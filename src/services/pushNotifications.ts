@@ -20,14 +20,6 @@ interface SendNotificationRequest {
   };
 }
 
-interface SendNotificationResponse {
-  success: boolean;
-  sent: number;
-  failed: number;
-  tickets?: string[];
-  error?: string;
-}
-
 /**
  * Send push notification to users
  * This calls the backend API which sends notifications via Expo Push Service
@@ -64,7 +56,7 @@ export async function getMyNotifications(
   cursor?: string
 ): Promise<{
   success: boolean;
-  items: Array<{
+  items: {
     id: string;
     title: string;
     body: string;
@@ -72,12 +64,12 @@ export async function getMyNotifications(
     data: Record<string, any>;
     read: boolean;
     createdAt: string;
-  }>;
+  }[];
   nextCursor?: string;
 }> {
   try {
     const response = await apiClient.get<{
-      items?: Array<{
+      items?: {
         _id?: string;
         id?: string;
         title?: string;
@@ -87,7 +79,7 @@ export async function getMyNotifications(
         isRead?: boolean;
         read?: boolean;
         createdAt?: string;
-      }>;
+      }[];
       nextCursor?: string | null;
     }>(`/v1/me/notifications?limit=${limit}${cursor ? `&cursor=${cursor}` : ""}`);
 
@@ -148,6 +140,36 @@ export async function markAllNotificationsAsRead(): Promise<{ success: boolean }
     return { success: response.success };
   } catch (error) {
     console.log("Failed to mark all notifications as read:", error);
+    return { success: false };
+  }
+}
+
+/**
+ * Delete a single notification
+ * DELETE /v1/me/notifications/:id
+ */
+export async function deleteNotification(
+  notificationId: string
+): Promise<{ success: boolean }> {
+  try {
+    const response = await apiClient.delete(`/v1/me/notifications/${notificationId}`);
+    return { success: response.success };
+  } catch (error) {
+    console.log("Failed to delete notification:", error);
+    return { success: false };
+  }
+}
+
+/**
+ * Delete all notifications
+ * DELETE /v1/me/notifications
+ */
+export async function deleteAllNotifications(): Promise<{ success: boolean }> {
+  try {
+    const response = await apiClient.delete("/v1/me/notifications");
+    return { success: response.success };
+  } catch (error) {
+    console.log("Failed to delete all notifications:", error);
     return { success: false };
   }
 }

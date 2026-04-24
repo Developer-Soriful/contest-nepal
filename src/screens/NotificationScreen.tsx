@@ -5,6 +5,7 @@ import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useCallback } from "react";
 import {
+    Alert,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -42,7 +43,15 @@ function getCategory(timestamp: string): "Today" | "Yesterday" | "Earlier" {
   return "Earlier";
 }
 
-const NotificationItem = ({ item, onPress }: { item: { id: string; title: string; body: string; data?: Record<string, any>; timestamp: string; read: boolean }; onPress: () => void }) => {
+const NotificationItem = ({
+  item,
+  onPress,
+  onDelete,
+}: {
+  item: { id: string; title: string; body: string; data?: Record<string, any>; timestamp: string; read: boolean };
+  onPress: () => void;
+  onDelete: () => void;
+}) => {
   const getIcon = () => {
     const type = item.data?.type || "default";
     switch (type) {
@@ -99,7 +108,19 @@ const NotificationItem = ({ item, onPress }: { item: { id: string; title: string
           <Text style={[styles.title, item.read && styles.readTitle]}>
             {item.title}
           </Text>
-          {!item.read && <View style={styles.unreadDot} />}
+          <View style={styles.titleActions}>
+            {!item.read && <View style={styles.unreadDot} />}
+            <TouchableOpacity
+              onPress={(event) => {
+                event.stopPropagation();
+                onDelete();
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.deleteButton}
+            >
+              <Ionicons name="trash-outline" size={18} color="#A30000" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
       <View style={styles.cardContent}>
@@ -113,7 +134,14 @@ const NotificationItem = ({ item, onPress }: { item: { id: string; title: string
 };
 
 const NotificationScreen = () => {
-  const { notifications, unreadCount, markAsRead, refreshNotifications } = useNotificationContext();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    deleteOne,
+    deleteAll,
+    refreshNotifications,
+  } = useNotificationContext();
   const [refreshing, setRefreshing] = React.useState(false);
 
   const onRefresh = useCallback(async () => {
@@ -132,6 +160,32 @@ const NotificationScreen = () => {
 
   const categories = ["Today", "Yesterday", "Earlier"] as const;
 
+  const confirmDeleteOne = useCallback((id: string) => {
+    Alert.alert("Delete notification", "This notification will be removed from your inbox.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          void deleteOne(id);
+        },
+      },
+    ]);
+  }, [deleteOne]);
+
+  const confirmDeleteAll = useCallback(() => {
+    Alert.alert("Clear notifications", "This will delete all notifications for your account.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete All",
+        style: "destructive",
+        onPress: () => {
+          void deleteAll();
+        },
+      },
+    ]);
+  }, [deleteAll]);
+
   // Empty state
   if (notifications.length === 0) {
     return (
@@ -140,6 +194,7 @@ const NotificationScreen = () => {
           title={`Notifications${unreadCount > 0 ? ` (${unreadCount})` : ""}`}
           backgroundColor="transparent"
           showLeftIcon={true}
+          rightElement={<View style={styles.headerSpacer} />}
         />
         <View style={styles.emptyContainer}>
           <Ionicons name="notifications-off-outline" size={64} color="#98A2B3" />
@@ -158,6 +213,11 @@ const NotificationScreen = () => {
         title={`Notifications${unreadCount > 0 ? ` (${unreadCount})` : ""}`}
         backgroundColor="transparent"
         showLeftIcon={true}
+        rightElement={
+          <TouchableOpacity onPress={confirmDeleteAll} activeOpacity={0.8}>
+            <Text style={styles.clearAllText}>Clear All</Text>
+          </TouchableOpacity>
+        }
       />
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -180,6 +240,7 @@ const NotificationScreen = () => {
                   onPress={() => {
                     void markAsRead(item.id);
                   }}
+                  onDelete={() => confirmDeleteOne(item.id)}
                 />
               ))}
             </View>
@@ -248,6 +309,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  titleActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 8,
+  },
   title: {
     fontSize: 16,
     fontWeight: "600",
@@ -263,7 +329,10 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: "#A30000",
-    marginLeft: 8,
+    marginRight: 10,
+  },
+  deleteButton: {
+    padding: 2,
   },
   cardContent: {
     paddingLeft: 44,
@@ -300,6 +369,14 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     textAlign: "center",
     lineHeight: 20,
+  },
+  clearAllText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#A30000",
+  },
+  headerSpacer: {
+    width: 20,
   },
 });
 

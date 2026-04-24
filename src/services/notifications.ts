@@ -5,6 +5,34 @@ import { Platform } from "react-native";
 import { apiClient } from "./api";
 
 const isExpoGo = Constants.appOwnership === "expo";
+const suppressedForegroundNotificationIds = new Map<string, ReturnType<typeof setTimeout>>();
+
+const getNotificationIdentity = (data?: Record<string, any>) => {
+  const value =
+    data?.notificationId ||
+    data?.id ||
+    data?._id;
+
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+};
+
+export function suppressForegroundPopupForNotification(
+  notificationId: string,
+  ttlMs: number = 15000
+): void {
+  const normalizedId = notificationId.trim();
+  const existingTimer = suppressedForegroundNotificationIds.get(normalizedId);
+
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  const timer = setTimeout(() => {
+    suppressedForegroundNotificationIds.delete(normalizedId);
+  }, ttlMs);
+
+  suppressedForegroundNotificationIds.set(normalizedId, timer);
+}
 
 const getExpoProjectId = (): string | undefined => {
   const easProjectId =
@@ -20,13 +48,27 @@ const getExpoProjectId = (): string | undefined => {
 // This is safe to call even in Expo Go as it only affects local notifications
 try {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
+    handleNotification: async (notification) => {
+      const notificationId = getNotificationIdentity(notification.request.content.data as Record<string, any> | undefined);
+      const shouldSuppressForegroundPopup =
+        !!notificationId && suppressedForegroundNotificationIds.has(notificationId);
+
+      if (shouldSuppressForegroundPopup && notificationId) {
+        const timer = suppressedForegroundNotificationIds.get(notificationId);
+        if (timer) {
+          clearTimeout(timer);
+        }
+        suppressedForegroundNotificationIds.delete(notificationId);
+      }
+
+      return {
+        shouldShowAlert: !shouldSuppressForegroundPopup,
+        shouldPlaySound: !shouldSuppressForegroundPopup,
+        shouldSetBadge: true,
+        shouldShowBanner: !shouldSuppressForegroundPopup,
+        shouldShowList: true,
+      };
+    },
   });
 } catch (error) {
   console.log("Notification handler setup skipped (Expo Go limitation)");
@@ -178,6 +220,38 @@ export async function scheduleLocalNotification(
     return id;
   } catch (error) {
     console.log("❌ Failed to schedule notification:", error);
+    return null;
+  }
+}
+
+/**
+ * Present a notification immediately while the app is open.
+ * Useful for socket-delivered events so the user still gets a top banner.
+ */
+export async function presentForegroundNotification(
+  title: string,
+  body: string,
+  data?: Record<string, any>
+): Promise<string | null> {
+  try {
+    const identity = getNotificationIdentity(data);
+    if (identity) {
+      suppressForegroundPopupForNotification(identity);
+    }
+
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        body,
+        data: data || {},
+        sound: "default",
+      },
+      trigger: null as any,
+    });
+
+    return id;
+  } catch (error) {
+    console.log("❌ Failed to present foreground notification:", error);
     return null;
   }
 }
