@@ -2,18 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    ScrollView,
-    Share,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  ScrollView,
+  Share,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import {
-    SafeAreaView,
-    useSafeAreaInsets,
+  SafeAreaView,
+  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { import_img } from "../../assets/import_img";
 import CustomGradientButton from "../components/CustomGradientButton";
@@ -194,7 +194,14 @@ export default function ContestDetailsScreen() {
   };
 
   const handleViewEntries = () => {
-    router.push("/all-contestants");
+    if (!contest) return;
+    router.push({
+      pathname: "/all-contestants",
+      params: {
+        contestId: contest.id,
+        title: contest.title,
+      },
+    });
   };
 
   if (loading) {

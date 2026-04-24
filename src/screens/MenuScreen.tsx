@@ -191,7 +191,7 @@ const MenuScreen = () => {
             <MenuItem
               icon={<Feather name="shield" size={18} color="#667085" />}
               title="Security & Password"
-              onPress={() => router.push("/(auth)/change-password")}
+              onPress={() => router.push("/change-password")}
             />
           </Section>
 

@@ -1,13 +1,12 @@
 import { Feather, FontAwesome5, Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
-  Alert,
   Linking,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Header from "../components/Header";
@@ -35,37 +34,28 @@ const MenuItem: React.FC<MenuItemProps> = ({ icon, title, onPress }) => {
 };
 
 const ContactUs = () => {
-  const handleInstagram = () => {
-    const instagramUrl = "https://instagram.com/your_handle";
-    Linking.canOpenURL(instagramUrl).then((supported) => {
-      if (supported) {
-        Linking.openURL(instagramUrl);
-      } else {
-        Alert.alert("Error", "Cannot open Instagram");
-      }
-    });
-  };
+  // const handleInstagram = () => {
+  //   const instagramUrl = "https://instagram.com/contestnepal";
+  //   Linking.canOpenURL(instagramUrl).then((supported) => {
+  //     if (supported) {
+  //       Linking.openURL(instagramUrl);
+  //     } else {
+  //       Alert.alert("Error", "Cannot open Instagram. Please check if the Instagram app is installed.");
+  //     }
+  //   });
+  // };
 
   const handleEmail = () => {
-    const emailUrl = "mailto:support@example.com";
-    Linking.canOpenURL(emailUrl).then((supported) => {
-      if (supported) {
-        Linking.openURL(emailUrl);
-      } else {
-        Alert.alert("Error", "Cannot open email client");
-      }
-    });
+    Linking.openURL("mailto:admin@contestnepal.com");
   };
 
   const handleTikTok = () => {
-    const tiktokUrl = "https://tiktok.com/@your_handle";
-    Linking.canOpenURL(tiktokUrl).then((supported) => {
-      if (supported) {
-        Linking.openURL(tiktokUrl);
-      } else {
-        Alert.alert("Error", "Cannot open TikTok");
-      }
-    });
+    const tiktokUrl = "https://www.tiktok.com/@contestnepal";
+    Linking.openURL(tiktokUrl);
+  };
+
+  const handleWhatsApp = () => {
+    Linking.openURL("https://wa.me/447404257825");
   };
 
   return (
@@ -78,11 +68,11 @@ const ContactUs = () => {
       >
         {/* Contact Options */}
         <View style={styles.menuContainer}>
-          <MenuItem
+          {/* <MenuItem
             icon={<FontAwesome5 name="instagram" size={20} color="#666" />}
             title="Instagram"
             onPress={handleInstagram}
-          />
+          /> */}
           <View style={styles.divider} />
           <MenuItem
             icon={<Feather name="mail" size={20} color="#666" />}
@@ -94,6 +84,12 @@ const ContactUs = () => {
             icon={<FontAwesome5 name="tiktok" size={20} color="#666" />}
             title="Tik tok"
             onPress={handleTikTok}
+          />
+          <View style={styles.divider} />
+          <MenuItem
+            icon={<FontAwesome5 name="whatsapp" size={20} color="#666" />}
+            title="WhatsApp"
+            onPress={handleWhatsApp}
           />
         </View>
       </ScrollView>

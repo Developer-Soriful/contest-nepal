@@ -92,47 +92,75 @@ export function AuthProvider({ children }: AuthProviderProps) {
         SafeAsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN),
       ]);
 
-      if (userData && accessToken) {
-        // Restore user from storage immediately - this ensures user stays logged in
+      if (userData && (accessToken || refreshToken)) {
+        // Validate token before granting access — stale tokens must not bypass auth
+        const isValid = await validateStoredSession(accessToken, refreshToken);
+
+        if (!isValid) {
+          await clearAuthData();
+          setIsLoading(false);
+          return;
+        }
+
         const parsedUser = JSON.parse(userData);
         if (!isAllowedAppUser(parsedUser)) {
           await clearAuthData();
           setIsLoading(false);
           return;
         }
+
         setUser(parsedUser);
 
-        // Background: try to refresh user data and validate token
+        // Background: refresh user profile from server
         authApi.getCurrentUser().then(response => {
           if (response.success && response.data) {
             setUser(response.data);
             SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data));
-          } else if (response.error?.code === 'APP_ROLE_NOT_ALLOWED') {
+          } else if (response.error?.status === 401 || response.error?.code === 'APP_ROLE_NOT_ALLOWED') {
             clearAuthData();
           }
         }).catch(() => undefined);
-      } else if (refreshToken && !accessToken) {
-        // No access token but have refresh token - try to refresh
-        const refreshResponse = await authApi.refreshTokens();
-        if (refreshResponse.success && refreshResponse.data) {
-          // Refresh succeeded, now get user
-          const userResponse = await authApi.getCurrentUser();
-          if (userResponse.success && userResponse.data && isAllowedAppUser(userResponse.data)) {
-            setUser(userResponse.data);
-            await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userResponse.data));
-          } else {
-            await clearAuthData();
-          }
-        } else {
-          await clearAuthData();
-        }
+      } else {
+        // No tokens at all — ensure clean state
+        await clearAuthData();
       }
     } catch (error) {
       console.log('Auth initialization error:', error);
-      // Don't clear data on error - let user stay logged in with stored data
+      await clearAuthData();
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /**
+   * Validate that the stored session is still valid.
+   * 1. If access token exists, try a lightweight API call.
+   * 2. If that fails (401), try refreshing the token.
+   * 3. If refresh also fails, the session is invalid.
+   */
+  const validateStoredSession = async (
+    accessToken: string | null,
+    refreshToken: string | null,
+  ): Promise<boolean> => {
+    // If we have an access token, verify it with the server
+    if (accessToken) {
+      const response = await authApi.getCurrentUser();
+      if (response.success) {
+        return true;
+      }
+      // 401 means access token is expired — try refresh below
+    }
+
+    // Access token missing or expired — try refresh token
+    if (refreshToken) {
+      const refreshResponse = await authApi.refreshTokens();
+      if (refreshResponse.success) {
+        return true;
+      }
+    }
+
+    // Neither token works
+    return false;
   };
 
   const clearAuthData = async () => {
@@ -442,14 +470,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshUser = useCallback(async (): Promise<void> => {
     try {
       const response = await authApi.getCurrentUser();
-      
+
       if (response.success && response.data) {
         setUser(response.data);
         await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data));
-      } else {
-        if (response.error?.code === 'APP_ROLE_NOT_ALLOWED') {
-          await clearAuthData();
-        }
+      } else if (response.error?.status === 401 || response.error?.code === 'APP_ROLE_NOT_ALLOWED') {
+        // Token is invalid or user role changed — force logout
+        await clearAuthData();
       }
     } catch (error) {
       console.log('[AuthContext] Refresh user error:', error);

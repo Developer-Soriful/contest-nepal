@@ -151,11 +151,25 @@ const getRandomBytes = (length: number): Uint8Array => {
   const bytes = new Uint8Array(length);
 
   if (expoCryptoModule?.getRandomValues) {
-    return expoCryptoModule.getRandomValues(bytes);
+    try {
+      const result = expoCryptoModule.getRandomValues(bytes);
+      if (result && result.length === length) {
+        return result;
+      }
+    } catch (_e) {
+      // Fall through to next method
+    }
   }
 
   if (globalThis.crypto?.getRandomValues) {
-    return globalThis.crypto.getRandomValues(bytes);
+    try {
+      const result = globalThis.crypto.getRandomValues(bytes);
+      if (result && result.length === length) {
+        return result;
+      }
+    } catch (_e) {
+      // Fall through to Math.random fallback
+    }
   }
 
   for (let i = 0; i < bytes.length; i += 1) {
@@ -167,11 +181,25 @@ const getRandomBytes = (length: number): Uint8Array => {
 
 const randomUuid = (): string => {
   if (expoCryptoModule?.randomUUID) {
-    return expoCryptoModule.randomUUID();
+    try {
+      const result = expoCryptoModule.randomUUID();
+      if (result && typeof result === 'string' && result.length === 36) {
+        return result;
+      }
+    } catch (_e) {
+      // Fall through
+    }
   }
 
   if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
+    try {
+      const result = globalThis.crypto.randomUUID();
+      if (result && typeof result === 'string' && result.length === 36) {
+        return result;
+      }
+    } catch (_e) {
+      // Fall through
+    }
   }
 
   const bytes = getRandomBytes(16);
@@ -186,10 +214,16 @@ const generateCodeVerifier = () =>
 
 const generateCodeChallenge = async (verifier: string) => {
   if (expoCryptoModule?.digestStringAsync) {
-    const digest = await expoCryptoModule.digestStringAsync('SHA-256', verifier, {
-      encoding: 'base64',
-    });
-    return toBase64Url(digest);
+    try {
+      const digest = await expoCryptoModule.digestStringAsync('SHA-256', verifier, {
+        encoding: 'base64',
+      });
+      if (digest && typeof digest === 'string') {
+        return toBase64Url(digest);
+      }
+    } catch (_e) {
+      // Fall through to next method
+    }
   }
 
   if (globalThis.crypto?.subtle) {
