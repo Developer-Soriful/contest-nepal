@@ -62,28 +62,28 @@ const FAQ = () => {
     const faqData: FAQData[] = [
         {
             id: 1,
-            question: 'How do I book a service App?',
-            answer: 'Select your service, pick a date & time, and confirm. You\'ll get a notification with details.',
+            question: 'How do I participate in a contest?',
+            answer: 'Browse active contests, select one you like, and tap "Participate Now". Follow the instructions and submit your entry before the deadline.',
         },
         {
             id: 2,
-            question: 'Can I reschedule or cancel my booking?',
-            answer: 'Yes, you can reschedule or cancel your booking up to 24 hours before the scheduled time through the app.',
+            question: 'Are contests free to join?',
+            answer: 'Yes, most contests on Contest Nepal are completely free to enter. Some special events might have entry requirements, which will be clearly stated.',
         },
         {
             id: 3,
-            question: 'What payment methods are accepted?',
-            answer: 'We accept credit/debit cards, mobile banking, and cash on delivery for most services.',
+            question: 'How are winners selected?',
+            answer: 'Winners are selected either by public voting or by the contest organizer\'s panel of judges, depending on the contest rules.',
         },
         {
             id: 4,
-            question: 'How do I contact the service provider?',
-            answer: 'Once your booking is confirmed, you can contact the service provider through the in-app chat or call feature.',
+            question: 'When will I receive my prize?',
+            answer: 'Prizes are distributed by the contest organizers within 7-14 days after the contest winners are officially announced.',
         },
         {
             id: 5,
-            question: 'Is my personal information safe?',
-            answer: 'Yes, we use industry-standard encryption and security measures to protect your personal information.',
+            question: 'Is my submission public?',
+            answer: 'Yes, once your submission is approved by the organizer, it becomes visible in the public gallery for voting and viewing.',
         },
     ];
 

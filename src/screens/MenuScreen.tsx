@@ -165,9 +165,9 @@ const MenuScreen = () => {
         <View style={{ paddingHorizontal: 16 }}>
           <Section title="Account Settings">
             <MenuItem
-              icon={<SimpleLineIcons name="user" size={18} color="#667085" />}
-              title="Profile Details"
-              onPress={() => router.push("/profile")}
+              icon={<Feather name="settings" size={18} color="#667085" />}
+              title="Settings"
+              onPress={() => router.push("/settings")}
             />
             <View style={styles.divider} />
             <View style={styles.menuItemWithAction}>

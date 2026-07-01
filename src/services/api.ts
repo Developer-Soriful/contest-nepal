@@ -67,6 +67,8 @@ export interface AuthResponse {
       locale: string;
       bio: string | null;
       location: string | null;
+      company?: string | null;
+      website?: string | null;
     };
     settings?: {
       notifications?: {
@@ -850,6 +852,8 @@ export const authApi = {
     location?: string;
     locale?: string;
     avatarUrl?: string;
+    company?: string;
+    website?: string;
   }): Promise<ApiResponse<AuthResponse['user']>> {
     console.log('API: Updating profile with data:', data);
     console.log('API: Using endpoint: PATCH /v1/me');
@@ -879,7 +883,7 @@ export const authApi = {
   // Get user's activities
   // Backend endpoint: GET /v1/me/activities
   // Backend returns: { items: [...], nextCursor: null } instead of direct array
-  async getMyActivities(): Promise<ApiResponse<{
+  async getMyActivities(options?: { limit?: number; cursor?: string }): Promise<ApiResponse<{
     items: Array<{
       id: string;
       contestId: string;
@@ -905,7 +909,7 @@ export const authApi = {
           status: 'active' | 'submitted' | 'in_progress' | 'completed';
           coverImageUrl?: string;
         }>, nextCursor?: string | null
-      }>('/v1/me/activities');
+      }>(options?.cursor ? `/v1/me/activities?limit=${options.limit ?? 15}&cursor=${options.cursor}` : `/v1/me/activities?limit=${options?.limit ?? 15}`);
 
       // Transform MongoDB data to frontend format
       if (response.success && response.data?.items) {
@@ -1374,6 +1378,51 @@ export const authApi = {
     }
   },
 
+  // Get approved submissions for a contest's public gallery
+  // Backend endpoint: GET /v1/contests/:id/submissions
+  async getContestSubmissions(
+    contestId: string,
+    options?: { status?: string; limit?: number; cursor?: string; sort?: string }
+  ): Promise<ApiResponse<{ items: any[]; nextCursor: string | null }>> {
+    try {
+      const params = new URLSearchParams();
+      if (options?.status) params.set('status', options.status);
+      if (options?.limit) params.set('limit', String(options.limit));
+      if (options?.cursor) params.set('cursor', options.cursor);
+      if (options?.sort) params.set('sort', options.sort);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      console.log('API: Fetching contest submissions for:', contestId);
+      const response = await apiClient.get<{ items: any[]; nextCursor: string | null }>(
+        `/v1/contests/${contestId}/submissions${query}`
+      );
+      return response;
+    } catch (error: any) {
+      console.log('API: Error fetching contest submissions:', error);
+      return {
+        success: false,
+        error: { title: 'Failed to fetch submissions', status: error?.response?.status || 500 },
+      };
+    }
+  },
+
+  // Get a single public submission by contest + submission ID
+  // Backend endpoint: GET /v1/contests/:id/submissions/:sid
+  async getPublicSubmission(contestId: string, submissionId: string): Promise<ApiResponse<any>> {
+    try {
+      console.log('API: Fetching public submission:', submissionId, 'for contest:', contestId);
+      const response = await apiClient.get<any>(
+        `/v1/contests/${contestId}/submissions/${submissionId}`
+      );
+      return response;
+    } catch (error: any) {
+      console.log('API: Error fetching public submission:', error);
+      return {
+        success: false,
+        error: { title: 'Failed to fetch submission', status: error?.response?.status || 500 },
+      };
+    }
+  },
+
   // Get calendar events
   // Backend endpoint: GET /v1/contests/calendar
   async getCalendarEvents(): Promise<ApiResponse<CalendarEvent[]>> {
@@ -1566,6 +1615,75 @@ export const authApi = {
     }
   },
 
+  // Get contest winners (public)
+  // Backend endpoint: GET /v1/contests/:id/winners
+  async getContestWinners(contestId: string): Promise<ApiResponse<{ items: any[] }>> {
+    try {
+      console.log('API: Fetching winners for contest:', contestId);
+      const response = await apiClient.get<any>(`/v1/contests/${contestId}/winners`);
+      if (response.success) {
+        // Normalise the response — backend returns an array directly
+        const items = Array.isArray(response.data) ? response.data : (response.data?.items ?? []);
+        return { success: true, data: { items } };
+      }
+      return { success: false, error: response.error || { title: 'Failed to fetch winners', status: 500 } };
+    } catch (error: any) {
+      console.log('API: Error fetching winners:', error);
+      return { success: false, error: { title: 'Failed to fetch winners', status: error?.response?.status || 500 } };
+    }
+  },
+
+  // Get notification/account settings
+  // Backend endpoint: GET /v1/me/settings
+  async getSettings(): Promise<ApiResponse<any>> {
+    try {
+      console.log('API: Fetching settings');
+      return await apiClient.get<any>('/v1/me/settings');
+    } catch (error: any) {
+      console.log('API: Error fetching settings:', error);
+      return { success: false, error: { title: 'Failed to fetch settings', status: 500 } };
+    }
+  },
+
+  // Update notification/account settings
+  // Backend endpoint: PATCH /v1/me/settings
+  async updateSettings(data: any): Promise<ApiResponse<any>> {
+    try {
+      console.log('API: Updating settings:', data);
+      return await apiClient.patch<any>('/v1/me/settings', data);
+    } catch (error: any) {
+      console.log('API: Error updating settings:', error);
+      return { success: false, error: { title: 'Failed to update settings', status: 500 } };
+    }
+  },
+
+  // Verify 2FA login code
+  // Backend endpoint: POST /v1/auth/2fa/verify-login
+  async verify2FA(data: { tempToken: string; code: string }): Promise<ApiResponse<AuthResponse>> {
+    try {
+      console.log('API: Verifying 2FA login');
+      const response = await apiClient.post<AuthResponse>('/v1/auth/2fa/verify-login', data);
+      if (response.success && response.data) {
+        const normalizedAuth = normalizeAuthPayload(response.data);
+        if (normalizedAuth) {
+          if (normalizedAuth.tokens) {
+            await apiClient.setTokens(normalizedAuth.tokens.accessToken, normalizedAuth.tokens.refreshToken);
+          }
+          if (normalizedAuth.user?.profile) {
+            normalizedAuth.user.profile.avatarUrl = getImageUrl(normalizedAuth.user.profile.avatarUrl);
+          }
+          await SafeAsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(normalizedAuth.user));
+          await SafeAsyncStorage.removeItem('SESSION_EXPIRED');
+          response.data = normalizedAuth;
+        }
+      }
+      return response;
+    } catch (error: any) {
+      console.log('API: Error verifying 2FA:', error);
+      return { success: false, error: error?.response?.data?.error || { title: '2FA verification failed', status: 500 } };
+    }
+  },
+
   // Social Login (Google OAuth)
   // Backend endpoint: POST /v1/auth/social
   async socialLogin(provider: 'google' | 'apple', token: string): Promise<ApiResponse<AuthResponse>> {
@@ -1635,4 +1753,6 @@ export const contestApi = {
   submitVote: authApi.submitVote,
   getContestants: authApi.getContestants,
   getPromotionalBanners: authApi.getPromotionalBanners,
+  getContestSubmissions: authApi.getContestSubmissions,
+  getPublicSubmission: authApi.getPublicSubmission,
 };

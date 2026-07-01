@@ -268,12 +268,14 @@ const Dashboard = () => {
   }));
 
   const SubmissionItem = ({
+    id,
     contestId,
     title,
     date,
     status,
     reason,
   }: {
+    id: string;
     contestId?: string;
     title: string;
     date: string;
@@ -305,7 +307,7 @@ const Dashboard = () => {
 
     const styles = getStatusStyles();
 
-    const targetUrl = `/contest-detail-screen?id=${contestId || ''}&status=${status}${reason ? `&reason=${encodeURIComponent(reason)}` : ""}`;
+    const targetUrl = `/my-submission-detail?submissionId=${id}&title=${encodeURIComponent(title)}`;
 
     return (
       <TouchableOpacity
@@ -674,6 +676,7 @@ const Dashboard = () => {
                 .map((item) => (
                   <SubmissionItem
                     key={item.id}
+                    id={item.id}
                     contestId={item.contestId}
                     title={item.title}
                     date={item.date}

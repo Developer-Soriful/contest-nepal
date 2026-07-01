@@ -7,9 +7,10 @@ import {
   Image,
   ScrollView,
   Share,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import {
   SafeAreaView,
@@ -35,6 +36,9 @@ const COLORS = {
   cardBg: "#f5f4fe",
   white: "#FFFFFF",
   success: "#10B981",
+  gold: "#F59E0B",
+  silver: "#9CA3AF",
+  bronze: "#B45309",
 };
 
 // Date formatter utility
@@ -126,13 +130,28 @@ interface ContestDetails {
   };
 }
 
+interface Winner {
+  _id: string;
+  rank: number;
+  userId: { _id: string; profile: { displayName: string; avatarUrl?: string } };
+  prize?: string;
+  declaredAt: string;
+}
+
 export default function ContestDetailsScreen() {
   const insets = useSafeAreaInsets();
   const { contestId, type } = useLocalSearchParams<{ contestId: string; type: string }>();
+
   const [contest, setContest] = useState<ContestDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isReportModalVisible, setIsReportModalVisible] = useState(false);
+
+  // Tabs
+  const [activeTab, setActiveTab] = useState<"overview" | "winners">("overview");
+  const [winners, setWinners] = useState<Winner[]>([]);
+  const [loadingWinners, setLoadingWinners] = useState(false);
+
   const contestType = type || "standard";
 
   useEffect(() => {
@@ -145,25 +164,43 @@ export default function ContestDetailsScreen() {
     fetchContestDetails();
   }, [contestId]);
 
+  useEffect(() => {
+    if (activeTab === "winners" && winners.length === 0 && contest?.status === "completed") {
+      fetchWinners();
+    }
+  }, [activeTab, contest?.status]);
+
   const fetchContestDetails = async () => {
     try {
       setLoading(true);
-      console.log('[ContestDetail] Fetching contest:', contestId);
-
       const response = await authApi.getContestById(contestId as string);
 
       if (response.success && response.data) {
-        console.log('[ContestDetail] Contest loaded:', response.data.title);
         setContest(response.data);
+        if (response.data.status === "completed") {
+          setActiveTab("winners"); // Default to winners if completed
+        }
       } else {
-        console.log('[ContestDetail] Failed to load:', response.error);
         setError(response.error?.title || 'Failed to load contest');
       }
     } catch (err) {
-      console.log('[ContestDetail] Error:', err);
       setError('Network error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchWinners = async () => {
+    try {
+      setLoadingWinners(true);
+      const response = await authApi.getContestWinners(contestId as string);
+      if (response.success && response.data?.items) {
+        setWinners(response.data.items);
+      }
+    } catch (error) {
+      console.log('Failed to fetch winners', error);
+    } finally {
+      setLoadingWinners(false);
     }
   };
 
@@ -179,24 +216,16 @@ export default function ContestDetailsScreen() {
     }
   };
 
-  const handleParticipate = () => {
-    if (contest?.id) {
-      router.push(`/entry-form?contestId=${contest.id}`);
-    }
-  };
-
   const handleStartEntry = () => {
     if (contest?.id) {
       router.replace(`/entry-form?contestId=${contest.id}`);
-    } else {
-      console.log('[ContestDetail] No contest ID available');
     }
   };
 
   const handleViewEntries = () => {
     if (!contest) return;
     router.push({
-      pathname: "/all-contestants",
+      pathname: "/submission-gallery",
       params: {
         contestId: contest.id,
         title: contest.title,
@@ -228,6 +257,298 @@ export default function ContestDetailsScreen() {
 
   const timeRemaining = getTimeRemaining(contest.endDate);
   const hasTimeRemaining = timeRemaining.days > 0 || timeRemaining.hours > 0 || timeRemaining.minutes > 0;
+  const isCompleted = contest.status === "completed";
+
+  const renderOverview = () => (
+    <View style={{ paddingHorizontal: 16 }}>
+      {/* Organizer info */}
+      <OrganizerInfo
+        name={contest.organizer?.displayName || "Contest Organizer"}
+        avatar={
+          contest.organizer?.avatarUrl && contest.organizer.avatarUrl.trim() !== ''
+            ? { uri: contest.organizer.avatarUrl }
+            : import_img.user_avatar
+        }
+        onPress={() => {
+          if (contest.organizer?.id) {
+            router.push({
+              pathname: "/organizer-profile",
+              params: { organizerId: contest.organizer.id }
+            });
+          }
+        }}
+      />
+      <Text
+        style={{
+          fontSize: 22,
+          fontWeight: "800",
+          color: "#111827",
+          marginBottom: 12,
+        }}
+      >
+        {contest.title}
+      </Text>
+
+      <SectionTitle>About this Contest</SectionTitle>
+      <Text
+        style={{
+          color: COLORS.textSecondary,
+          lineHeight: 20,
+          marginBottom: 20,
+        }}
+      >
+        {contest.description || 'No description available'}
+      </Text>
+
+      {contest.rules && (
+        <>
+          <SectionTitle>Rules & Requirement</SectionTitle>
+          {contest.rules.split('\n').map((rule, index) => (
+            rule.trim() ? <RuleItem key={index} text={rule.trim()} /> : null
+          ))}
+        </>
+      )}
+
+      {/* How to Participate Card */}
+      <View
+        style={{
+          backgroundColor: COLORS.cardBg,
+          borderRadius: 16,
+          padding: 16,
+          marginTop: 20,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <Ionicons
+            name="alert-circle-outline"
+            size={24}
+            color={COLORS.primary}
+          />
+          <Text
+            style={{
+              marginLeft: 8,
+              fontWeight: "700",
+              color: COLORS.textDark,
+            }}
+          >
+            How to participate
+          </Text>
+        </View>
+        <Text
+          style={{
+            color: COLORS.textSecondary,
+            fontSize: 13,
+            marginBottom: 4,
+          }}
+        >
+          Complete the tasks listed in the entry form to earn your chance to
+          win. The more tasks you complete, the higher your chances!
+        </Text>
+      </View>
+
+      {/* Grand Prize Card */}
+      <View
+        style={{
+          backgroundColor: COLORS.cardBg,
+          borderRadius: 16,
+          padding: 16,
+          marginTop: 16,
+          flexDirection: "row",
+          alignItems: "center",
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: "#fff",
+            padding: 8,
+            borderRadius: 8,
+            marginRight: 12,
+          }}
+        >
+          <Ionicons name="trophy-outline" size={24} color="#D97706" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 14, color: COLORS.textSecondary }}>
+            Grand Prize
+          </Text>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "800",
+              color: COLORS.textDark,
+            }}
+            numberOfLines={2}
+          >
+            {contest.reward || 'Exciting Prize'}
+          </Text>
+          <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>
+            Ends: {formatDate(contest.endDate)}
+          </Text>
+        </View>
+      </View>
+
+      {/* Contest Stats */}
+      <View
+        style={{
+          backgroundColor: COLORS.cardBg,
+          borderRadius: 16,
+          padding: 16,
+          marginTop: 16,
+          marginBottom: 20,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#fff",
+              padding: 6,
+              borderRadius: 6,
+              marginRight: 10,
+            }}
+          >
+            <Ionicons name="stats-chart" size={18} color={COLORS.primary} />
+          </View>
+          <Text style={{ fontWeight: "700", color: COLORS.textDark }}>
+            Contest Stats
+          </Text>
+        </View>
+
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 12,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Ionicons
+              name="people-outline"
+              size={20}
+              color={COLORS.textSecondary}
+            />
+            <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>
+              Participants
+            </Text>
+          </View>
+          <Text style={{ fontWeight: "600" }}>
+            {contest.participantCount} Person
+          </Text>
+        </View>
+
+        {hasTimeRemaining && (
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Ionicons
+                name="time-outline"
+                size={20}
+                color={COLORS.textSecondary}
+              />
+              <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>
+                Time left
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              {[timeRemaining.days.toString().padStart(2, '0'), timeRemaining.hours.toString().padStart(2, '0'), timeRemaining.minutes.toString().padStart(2, '0')].map((time, i) => (
+                <React.Fragment key={i}>
+                  <View
+                    style={{
+                      backgroundColor: "#fff",
+                      padding: 4,
+                      borderRadius: 4,
+                      minWidth: 30,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text style={{ color: COLORS.primary, fontWeight: "700" }}>{time}</Text>
+                  </View>
+                  {i < 2 && <Text style={{ marginHorizontal: 4, color: COLORS.primary }}>:</Text>}
+                </React.Fragment>
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Poll block (if contest is a poll) */}
+      {contestType === "poll" && (
+        <View style={{ marginTop: 18 }}>
+          <PollComponent
+            question="Which theme should be featured in next week's contest?"
+            options={[
+              { id: "o1", text: "Urban Night", votes: 24 },
+              { id: "o2", text: "Nature Close-up", votes: 42 },
+              { id: "o3", text: "Abstract Colors", votes: 16 },
+            ]}
+          />
+        </View>
+      )}
+    </View>
+  );
+
+  const getRankColor = (rank: number) => {
+    if (rank === 1) return COLORS.gold;
+    if (rank === 2) return COLORS.silver;
+    if (rank === 3) return COLORS.bronze;
+    return COLORS.primary;
+  };
+
+  const renderWinners = () => (
+    <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+      {loadingWinners ? (
+        <View style={{ padding: 40, alignItems: "center" }}>
+          <ActivityIndicator color={COLORS.primary} />
+          <Text style={{ color: COLORS.textSecondary, marginTop: 8 }}>Loading winners...</Text>
+        </View>
+      ) : winners.length === 0 ? (
+        <View style={{ padding: 40, alignItems: "center" }}>
+          <Ionicons name="trophy-outline" size={48} color={(COLORS as any).border} />
+          <Text style={{ color: COLORS.textSecondary, marginTop: 12, textAlign: "center" }}>
+            No winners announced yet.
+          </Text>
+        </View>
+      ) : (
+        <View style={{ gap: 12 }}>
+          {winners.map((winner) => (
+            <View key={winner._id} style={styles.winnerCard}>
+              <View style={[styles.rankBadge, { backgroundColor: getRankColor(winner.rank) }]}>
+                <Text style={styles.rankText}>#{winner.rank}</Text>
+              </View>
+              <Image
+                source={winner.userId?.profile?.avatarUrl ? { uri: winner.userId.profile.avatarUrl } : import_img.user_avatar}
+                style={styles.winnerAvatar}
+              />
+              <View style={styles.winnerInfo}>
+                <Text style={styles.winnerName}>{winner.userId?.profile?.displayName || "Unknown Participant"}</Text>
+                {winner.prize && (
+                  <Text style={styles.winnerPrize}>{winner.prize}</Text>
+                )}
+              </View>
+              <Ionicons name="ribbon" size={24} color={getRankColor(winner.rank)} />
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.white }}>
@@ -247,11 +568,7 @@ export default function ContestDetailsScreen() {
                 borderColor: COLORS.primary,
               }}
             >
-              <Ionicons
-                name="share-social-outline"
-                size={18}
-                color={COLORS.primary}
-              />
+              <Ionicons name="share-social-outline" size={18} color={COLORS.primary} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setIsReportModalVisible(true)}
@@ -269,10 +586,8 @@ export default function ContestDetailsScreen() {
           </View>
         }
       />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
-      >
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
         {/* Banner Image */}
         <View style={{ padding: 16 }}>
           <Image
@@ -286,259 +601,26 @@ export default function ContestDetailsScreen() {
           />
         </View>
 
-        <View style={{ paddingHorizontal: 16 }}>
-          {/* Organizer info */}
-          <OrganizerInfo
-            name={contest.organizer?.displayName || "Contest Organizer"}
-            avatar={
-              contest.organizer?.avatarUrl && contest.organizer.avatarUrl.trim() !== ''
-                ? { uri: contest.organizer.avatarUrl }
-                : import_img.user_avatar
-            }
-            onPress={() => {
-              if (contest.organizer?.id) {
-                router.push({
-                  pathname: "/organizer-profile",
-                  params: { organizerId: contest.organizer.id }
-                });
-              }
-            }}
-          />
-          <Text
-            style={{
-              fontSize: 22,
-              fontWeight: "800",
-              color: "#111827",
-              marginBottom: 12,
-            }}
-          >
-            {contest.title}
-          </Text>
-
-          <SectionTitle>About this Contest</SectionTitle>
-          <Text
-            style={{
-              color: COLORS.textSecondary,
-              lineHeight: 20,
-              marginBottom: 20,
-            }}
-          >
-            {contest.description || 'No description available'}
-          </Text>
-
-          {contest.rules && (
-            <>
-              <SectionTitle>Rules & Requirement</SectionTitle>
-              {contest.rules.split('\n').map((rule, index) => (
-                rule.trim() && <RuleItem key={index} text={rule.trim()} />
-              ))}
-            </>
-          )}
-
-          {/* How to Participate Card */}
-          <View
-            style={{
-              backgroundColor: COLORS.cardBg,
-              borderRadius: 16,
-              padding: 16,
-              marginTop: 20,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 8,
-              }}
+        {/* Tab Switcher (Only show if completed, or always show? Let's show if completed or has winners) */}
+        {isCompleted && (
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "overview" && styles.activeTab]}
+              onPress={() => setActiveTab("overview")}
             >
-              <Ionicons
-                name="alert-circle-outline"
-                size={24}
-                color={COLORS.primary}
-              />
-              <Text
-                style={{
-                  marginLeft: 8,
-                  fontWeight: "700",
-                  color: COLORS.textDark,
-                }}
-              >
-                How to participate
-              </Text>
-            </View>
-            <Text
-              style={{
-                color: COLORS.textSecondary,
-                fontSize: 13,
-                marginBottom: 4, // Reduced margin
-              }}
+              <Text style={[styles.tabText, activeTab === "overview" && styles.activeTabText]}>Overview</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === "winners" && styles.activeTab]}
+              onPress={() => setActiveTab("winners")}
             >
-              Complete the tasks listed in the entry form to earn your chance to
-              win. The more tasks you complete, the higher your chances!
-            </Text>
+              <Text style={[styles.tabText, activeTab === "winners" && styles.activeTabText]}>Winners</Text>
+            </TouchableOpacity>
           </View>
+        )}
 
-          {/* Grand Prize Card */}
-          <View
-            style={{
-              backgroundColor: COLORS.cardBg,
-              borderRadius: 16,
-              padding: 16,
-              marginTop: 16,
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: "#fff",
-                padding: 8,
-                borderRadius: 8,
-                marginRight: 12,
-              }}
-            >
-              <Ionicons name="trophy-outline" size={24} color="#D97706" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 14, color: COLORS.textSecondary }}>
-                Grand Prize
-              </Text>
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "800",
-                  color: COLORS.textDark,
-                }}
-                numberOfLines={2}
-              >
-                {contest.reward || 'Exciting Prize'}
-              </Text>
-              <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>
-                Ends: {formatDate(contest.endDate)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Contest Stats */}
-          <View
-            style={{
-              backgroundColor: COLORS.cardBg,
-              borderRadius: 16,
-              padding: 16,
-              marginTop: 16,
-              marginBottom: 20,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <View
-                style={{
-                  backgroundColor: "#fff",
-                  padding: 6,
-                  borderRadius: 6,
-                  marginRight: 10,
-                }}
-              >
-                <Ionicons name="stats-chart" size={18} color={COLORS.primary} />
-              </View>
-              <Text style={{ fontWeight: "700", color: COLORS.textDark }}>
-                Contest Stats
-              </Text>
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 12,
-              }}
-            >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Ionicons
-                  name="people-outline"
-                  size={20}
-                  color={COLORS.textSecondary}
-                />
-                <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>
-                  Participants
-                </Text>
-              </View>
-              <Text style={{ fontWeight: "600" }}>
-                {contest.participantCount} Person
-              </Text>
-            </View>
-
-            {hasTimeRemaining && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <Ionicons
-                    name="time-outline"
-                    size={20}
-                    color={COLORS.textSecondary}
-                  />
-                  <Text style={{ marginLeft: 8, color: COLORS.textSecondary }}>
-                    Time left
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  {[timeRemaining.days.toString().padStart(2, '0'), timeRemaining.hours.toString().padStart(2, '0'), timeRemaining.minutes.toString().padStart(2, '0')].map((time, i) => (
-                    <React.Fragment key={i}>
-                      <View
-                        style={{
-                          backgroundColor: "#fff",
-                          padding: 4,
-                          borderRadius: 4,
-                          minWidth: 30,
-                          alignItems: "center",
-                        }}
-                      >
-                        <Text
-                          style={{ color: COLORS.primary, fontWeight: "700" }}
-                        >
-                          {time}
-                        </Text>
-                      </View>
-                      {i < 2 && (
-                        <Text
-                          style={{ marginHorizontal: 4, color: COLORS.primary }}
-                        >
-                          :
-                        </Text>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
+        {activeTab === "overview" ? renderOverview() : renderWinners()}
       </ScrollView>
-
-      {/* Poll block (if contest is a poll) */}
-      {contestType === "poll" && (
-        <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
-          <PollComponent
-            question="Which theme should be featured in next week's contest?"
-            options={[
-              { id: "o1", text: "Urban Night", votes: 24 },
-              { id: "o2", text: "Nature Close-up", votes: 42 },
-              { id: "o3", text: "Abstract Colors", votes: 16 },
-            ]}
-          />
-        </View>
-      )}
 
       {/* Sticky Bottom Buttons */}
       <View
@@ -555,16 +637,18 @@ export default function ContestDetailsScreen() {
           gap: 12,
         }}
       >
+        {!isCompleted ? (
+          <CustomGradientButton
+            containerStyle={{ flex: 1, borderRadius: 10 }}
+            borderRadius={10}
+            title="Participate Now"
+            onPress={handleStartEntry}
+          />
+        ) : null}
         <CustomGradientButton
           containerStyle={{ flex: 1, borderRadius: 10 }}
           borderRadius={10}
-          title="Participate Now"
-          onPress={handleStartEntry}
-        />
-        <CustomGradientButton
-          containerStyle={{ flex: 1, borderRadius: 10 }}
-          borderRadius={10}
-          title="View Entries"
+          title={isCompleted ? "View Gallery" : "View Entries"}
           backgroundColor="#FFEDCE"
           outerBorderColor="#111827"
           textStyle={{
@@ -573,6 +657,7 @@ export default function ContestDetailsScreen() {
           onPress={handleViewEntries}
         />
       </View>
+
       {/* Report Modal */}
       <ReportModal
         isVisible={isReportModalVisible}
@@ -584,3 +669,78 @@ export default function ContestDetailsScreen() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  tabContainer: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: COLORS.bgLight,
+    padding: 4,
+    borderRadius: 12,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  activeTab: {
+    backgroundColor: COLORS.white,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabText: {
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+  },
+  activeTabText: {
+    color: COLORS.primary,
+  },
+  winnerCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: (COLORS as any).border,
+    borderRadius: 16,
+    padding: 12,
+  },
+  rankBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  rankText: {
+    color: COLORS.white,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  winnerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.bgLight,
+    marginRight: 12,
+  },
+  winnerInfo: {
+    flex: 1,
+  },
+  winnerName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.textDark,
+  },
+  winnerPrize: {
+    fontSize: 13,
+    color: COLORS.primary,
+    fontWeight: "600",
+    marginTop: 2,
+  }
+});

@@ -165,11 +165,11 @@ const ProfileScreen = () => {
 
   // Navigation Handlers
   const handleEditProfile = () => {
-    router.push("/edit-profile");
+    router.push("/settings");
   };
 
   const handleChangePassword = () => {
-    router.push("/change-password");
+    router.push("/settings");
   };
 
   const handleActivities = () => {

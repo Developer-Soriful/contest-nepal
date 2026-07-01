@@ -56,6 +56,12 @@ const HelpSupport = () => {
                 {/* Menu Items */}
                 <View style={styles.menuContainer}>
                     <MenuItem
+                        icon={<Ionicons name="information-circle-outline" size={20} color="#666" />}
+                        title="How It Works"
+                        onPress={() => router.push('/how-it-works')}
+                    />
+                    <View style={styles.divider} />
+                    <MenuItem
                         icon={<MaterialIcons name="help-outline" size={20} color="#666" />}
                         title="FAQ"
                         onPress={handleFAQ}
@@ -65,6 +71,18 @@ const HelpSupport = () => {
                         icon={<Feather name="mail" size={20} color="#666" />}
                         title="Contact Us"
                         onPress={handleContactUs}
+                    />
+                    <View style={styles.divider} />
+                    <MenuItem
+                        icon={<Ionicons name="shield-checkmark-outline" size={20} color="#666" />}
+                        title="Privacy Policy"
+                        onPress={() => router.push('/privacy-policy')}
+                    />
+                    <View style={styles.divider} />
+                    <MenuItem
+                        icon={<Ionicons name="document-text-outline" size={20} color="#666" />}
+                        title="Terms & Conditions"
+                        onPress={() => router.push('/terms-conditions')}
                     />
                 </View>
             </ScrollView>
